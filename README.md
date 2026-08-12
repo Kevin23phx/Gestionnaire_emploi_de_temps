@@ -1,36 +1,132 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Campus Manager — Frontend (PWA)
 
-## Getting Started
+Frontend de **Campus Manager**, l'outil de gestion en temps réel des emplois du
+temps de l'UJKZ (Burkina Faso). Ce dépôt contient uniquement le frontend
+(PWA Next.js) ; le backend (NestJS + PostgreSQL) vit dans un dépôt séparé.
 
-First, run the development server:
+Contexte complet du projet : cahier des charges et documents d'ingénierie
+(PRD, SRS, Contrat & Invariants, Architecture, UML/C4) disponibles à la racine
+du dossier partagé de l'équipe (`Projet_emploi_de_temps/`), un niveau au-dessus
+de ce dépôt — ils ne sont pas dupliqués ici.
+
+## Stack
+
+- **Next.js 16** (App Router, Turbopack) + **React 19** + **TypeScript**
+- **Tailwind CSS v4** (tokens de design définis dans `src/app/globals.css`)
+- **lucide-react** pour les icônes
+- PWA : `src/app/manifest.ts` + service worker minimal (`public/sw.js`)
+- Aucune police externe (pas de `next/font/google`) — volontaire, cf. §1.4 du
+  cahier des charges (sobriété des données, réseau parfois limité)
+
+## Lancer le projet
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Ouvrir [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Comptes de démonstration (mock, cf. `src/lib/mock-data.ts`) :
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Rôle | Identifiant | Mot de passe |
+|---|---|---|
+| Étudiant | `20230145` | `password` |
+| Enseignant | `kabore.enseignant` | `password` |
+| Scolarité | `scolarite.info` | `password` |
 
-## Learn More
+```bash
+npm run lint       # ESLint (flat config, Next 16)
+npx tsc --noEmit   # vérification des types
+npm run build      # build de production
+```
 
-To learn more about Next.js, take a look at the following resources:
+## État actuel : tout est mocké, pas encore branché sur l'API réelle
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+**Il n'y a pas encore de backend.** Pour pouvoir construire et démontrer les
+écrans dès maintenant, ce dépôt simule le backend avec :
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `src/lib/mock-data.ts` — jeux de données factices (utilisateurs, salles,
+  créneaux, notifications, demandes, audit).
+- `src/app/api/auth/{login,activate,logout}/route.ts` — endpoints Next.js qui
+  posent un cookie de session en clair (`cm_session`, JSON non signé). **Ceci
+  n'est pas un mécanisme d'authentification sécurisé** — c'est un bouchon à
+  remplacer entièrement par des appels à l'API NestJS (JWT ou session serveur)
+  une fois celle-ci disponible.
+- `src/lib/conflict-detection.ts` — un décalque du moteur de détection de
+  conflits (FR-CONF-01→04) pour donner à voir de vrais résultats à l'écran
+  `/scolarite/planning`. **La version qui fait foi doit vivre côté API**
+  (`ConflictEngineModule`, cf. `04_Exigence_Architecture_Campus_Manager.md`).
 
-## Deploy on Vercel
+Tout ce qui est mock est commenté comme tel dans le code, avec une référence à
+l'exigence SRS concernée.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Contrat API — point de coordination avec le backend
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+`src/lib/types.ts` définit le contrat de données attendu par le frontend
+(dérivé de `02_SRS_Campus_Manager.md` et `03_Contrat_Invariants_...md`) :
+`Utilisateur`, `Role`, `Groupe`, `Salle`, `Creneau`, `ConflitDetecte`,
+`NotificationItem`, `DemandeEnseignant`, `AuditEntry`, `DashboardStats`.
+
+**Ce fichier est la référence à partager avec le backend.** Toute évolution du
+modèle de données doit être discutée entre les deux équipes et répercutée ici
+— c'est ce qui évite que le frontend et le backend divergent silencieusement.
+
+Quand l'API sera prête, les points de bascule sont limités à :
+
+1. `src/lib/session.ts` + les 3 routes `src/app/api/auth/*` → remplacer par de
+   vrais appels à l'API NestJS (`AuthModule`).
+2. Chaque import de `src/lib/mock-data.ts` dans les pages → remplacer par un
+   appel réseau vers l'API correspondante.
+3. `src/lib/conflict-detection.ts` → à terme, n'afficher que ce que renvoie
+   l'API (le calcul ne doit exister qu'à un seul endroit).
+
+## Structure
+
+```
+src/
+  app/                    routes (App Router)
+    page.tsx              accueil public
+    connexion/            connexion (pas de sélecteur de rôle, cf. FR-AUTH-02)
+    activation/            activation de compte pré-provisionné
+    aide/                  page d'assistance / mentions données personnelles
+    etudiant/              espace étudiant (layout protégé par rôle)
+    enseignant/            espace enseignant
+    scolarite/             espace scolarité d'UFR (planning, salles, demandes, audit)
+    api/auth/              endpoints mock d'authentification
+    manifest.ts            manifest PWA
+    icon.svg               favicon / icône PWA
+  components/
+    layout/                Sidebar, OfflineBanner, RoleGuardShell
+    ui/                    Avatar, StatusBadge
+    schedule/               ScheduleWeekGrid (grille horaire partagée)
+    conflicts/              ConflictPanel
+    demandes/               formulaires et liste de validation
+    audit/                  AuditTable
+    pwa/                    enregistrement du service worker
+  lib/
+    types.ts                contrat de données (voir ci-dessus)
+    mock-data.ts             données factices
+    conflict-detection.ts    moteur de conflits (démo)
+    session.ts                lecture de session (server-only, next/headers)
+    roles.ts                  utilitaire de routage par rôle (client-safe)
+  hooks/
+    useSyncStatus.ts          état en ligne/hors-ligne + dernière synchro
+```
+
+## Périmètre MVP (rappel)
+
+3 rôles seulement (Étudiant, Enseignant, Scolarité d'UFR), une seule UFR
+pilote — décision de cadrage documentée dans `01_PRD_Campus_Manager.md`. Les
+rôles DEP/DSI et la gestion des salles communes/louées sont hors périmètre
+pour cette version.
+
+## Connu comme non fini (prochaines étapes frontend)
+
+- Formulaire de création/modification de créneau (FR-EDT-01/02/03) — les
+  boutons "Corriger" / "Modifier salle" du panneau de conflits ne sont pas
+  encore câblés.
+- Vraie pagination / filtres sur le journal d'audit et le référentiel des
+  salles (FR-REF-01 : import Excel/CSV).
+- Remplacement du cookie de session mock par un vrai mécanisme d'auth une
+  fois l'API disponible.
