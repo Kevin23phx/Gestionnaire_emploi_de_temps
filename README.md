@@ -4,10 +4,11 @@ Frontend de **Campus Manager**, l'outil de gestion en temps réel des emplois du
 temps de l'UJKZ (Burkina Faso). Ce dépôt contient uniquement le frontend
 (PWA Next.js) ; le backend (NestJS + PostgreSQL) vit dans un dépôt séparé.
 
-Contexte complet du projet : cahier des charges et documents d'ingénierie
-(PRD, SRS, Contrat & Invariants, Architecture, UML/C4) disponibles à la racine
-du dossier partagé de l'équipe (`Projet_emploi_de_temps/`), un niveau au-dessus
-de ce dépôt — ils ne sont pas dupliqués ici.
+Contexte complet du projet : les documents d'ingénierie (PRD, SRS, Contrat &
+Invariants, Architecture, UML/C4) sont dans [`docs/`](docs/). Le cahier des
+charges complet et le guide méthodologique restent dans le dossier partagé de
+l'équipe (`Projet_emploi_de_temps/`, un niveau au-dessus de ce dépôt) — ils ne
+sont pas dupliqués ici pour éviter d'avoir deux copies à maintenir.
 
 ## Stack
 
@@ -56,7 +57,7 @@ npm run build      # build de production
 - `src/lib/conflict-detection.ts` — un décalque du moteur de détection de
   conflits (FR-CONF-01→04) pour donner à voir de vrais résultats à l'écran
   `/scolarite/planning`. **La version qui fait foi doit vivre côté API**
-  (`ConflictEngineModule`, cf. `04_Exigence_Architecture_Campus_Manager.md`).
+  (`ConflictEngineModule`, cf. [`docs/04_Exigence_Architecture_Campus_Manager.md`](docs/04_Exigence_Architecture_Campus_Manager.md)).
 
 Tout ce qui est mock est commenté comme tel dans le code, avec une référence à
 l'exigence SRS concernée.
@@ -64,7 +65,8 @@ l'exigence SRS concernée.
 ## Contrat API — point de coordination avec le backend
 
 `src/lib/types.ts` définit le contrat de données attendu par le frontend
-(dérivé de `02_SRS_Campus_Manager.md` et `03_Contrat_Invariants_...md`) :
+(dérivé de [`docs/02_SRS_Campus_Manager.md`](docs/02_SRS_Campus_Manager.md) et
+[`docs/03_Contrat_Invariants_Campus_Manager.md`](docs/03_Contrat_Invariants_Campus_Manager.md)) :
 `Utilisateur`, `Role`, `Groupe`, `Salle`, `Creneau`, `ConflitDetecte`,
 `NotificationItem`, `DemandeEnseignant`, `AuditEntry`, `DashboardStats`.
 
@@ -117,7 +119,7 @@ src/
 ## Périmètre MVP (rappel)
 
 3 rôles seulement (Étudiant, Enseignant, Scolarité d'UFR), une seule UFR
-pilote — décision de cadrage documentée dans `01_PRD_Campus_Manager.md`. Les
+pilote — décision de cadrage documentée dans [`docs/01_PRD_Campus_Manager.md`](docs/01_PRD_Campus_Manager.md). Les
 rôles DEP/DSI et la gestion des salles communes/louées sont hors périmètre
 pour cette version.
 
