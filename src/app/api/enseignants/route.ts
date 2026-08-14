@@ -7,6 +7,13 @@
 import { NextResponse } from "next/server";
 import { MOCK_ENSEIGNANTS, MOCK_UTILISATEURS } from "@/lib/mock-data";
 
+// GET plutôt qu'un import statique côté page : en dev, Turbopack ne partage
+// pas toujours la même instance de module entre une Route Handler et une
+// Page — passer par une vraie requête HTTP garantit de lire l'état à jour.
+export async function GET() {
+  return NextResponse.json({ enseignants: MOCK_ENSEIGNANTS });
+}
+
 export async function POST(request: Request) {
   const { nom, prenom, identifiant } = await request.json();
 

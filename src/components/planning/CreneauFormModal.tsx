@@ -13,13 +13,20 @@ import { detecterConflits } from "@/lib/conflict-detection";
 import { ConflitGraviteBadge } from "@/components/ui/StatusBadge";
 
 const JOURS: { value: Creneau["jour"]; label: string }[] = [
-  { value: "lundi", label: "Lundi" },
-  { value: "mardi", label: "Mardi" },
-  { value: "mercredi", label: "Mercredi" },
-  { value: "jeudi", label: "Jeudi" },
-  { value: "vendredi", label: "Vendredi" },
-  { value: "samedi", label: "Samedi" },
+  { value: "lundi", label: "Lun" },
+  { value: "mardi", label: "Mar" },
+  { value: "mercredi", label: "Mer" },
+  { value: "jeudi", label: "Jeu" },
+  { value: "vendredi", label: "Ven" },
+  { value: "samedi", label: "Sam" },
 ];
+
+const HEURE_MIN = 7;
+const HEURE_MAX = 18;
+const OPTIONS_HEURE = Array.from(
+  { length: HEURE_MAX - HEURE_MIN + 1 },
+  (_, i) => `${String(HEURE_MIN + i).padStart(2, "0")}:00`
+);
 
 const NOUVEL_ENSEIGNANT = "__nouveau__";
 const NOUVELLE_UE = "__nouvelle__";
@@ -32,16 +39,18 @@ interface Props {
   salles: Salle[];
   unitesEnseignement: UniteEnseignement[];
   onClose: () => void;
-  onSave: (creneau: Creneau, motifDerogation: string | null) => void;
+  onSave: (creneaux: Creneau[], motifDerogation: string | null) => void;
   onEnseignantCree: (enseignant: Enseignant) => void;
 }
 
 // FR-EDT-01/02/03 + FR-CONF-01→08 : un seul formulaire pour créer, modifier
-// ou annuler un créneau, avec détection de conflits recalculée à chaque
-// changement (§4.3 du cahier des charges : "au moment de la saisie ou de la
-// modification"), et prise en charge du provisionnement d'un compte
-// enseignant à la volée (cf. échange du 2026-08-14 — sans mot de passe,
-// l'enseignant l'active lui-même via /activation).
+// ou annuler un/des créneau(x), avec détection de conflits recalculée à
+// chaque changement (§4.3 : "au moment de la saisie ou de la modification").
+// En création, un cours peut se répéter sur plusieurs jours de la semaine
+// (ex. lundi ET jeudi) : un créneau distinct est généré par jour coché, tous
+// identiques hormis le jour. En édition, on modifie une seule occurrence à
+// la fois — changer le jour déplace ce créneau précis, ça n'en crée pas
+// d'autres.
 export function CreneauFormModal({
   creneau,
   creneauxExistants,
@@ -61,7 +70,7 @@ export function CreneauFormModal({
   const [nouvelEnseignant, setNouvelEnseignant] = useState({ nom: "", prenom: "", identifiant: "" });
   const [groupeId, setGroupeId] = useState(creneau?.groupe.id ?? groupes[0]?.id ?? "");
   const [salleId, setSalleId] = useState(creneau?.salle.id ?? salles[0]?.id ?? "");
-  const [jour, setJour] = useState<Creneau["jour"]>(creneau?.jour ?? "lundi");
+  const [jours, setJours] = useState<Set<Creneau["jour"]>>(new Set([creneau?.jour ?? "lundi"]));
   const [heureDebut, setHeureDebut] = useState(creneau?.heureDebut ?? "08:00");
   const [heureFin, setHeureFin] = useState(creneau?.heureFin ?? "10:00");
   const [motif, setMotif] = useState("");
@@ -69,12 +78,26 @@ export function CreneauFormModal({
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, setEnCours] = useState(false);
 
-  const salleChoisie = salles.find((s) => s.id === salleId);
   const groupeChoisi = groupes.find((g) => g.id === groupeId);
+  const salleChoisie = salles.find((s) => s.id === salleId);
+  const optionsHeureFin = OPTIONS_HEURE.filter((h) => h > heureDebut);
 
-  // Aperçu du créneau tel qu'il serait enregistré, pour calculer les conflits en direct.
-  const creneauApercu: Creneau | null = useMemo(() => {
-    if (!groupeChoisi || !salleChoisie || heureFin <= heureDebut) return null;
+  function toggleJour(jour: Creneau["jour"]) {
+    if (!modeEdition) {
+      setJours((prev) => {
+        const suivant = new Set(prev);
+        if (suivant.has(jour)) suivant.delete(jour);
+        else suivant.add(jour);
+        return suivant;
+      });
+    } else {
+      setJours(new Set([jour])); // édition : un seul jour à la fois
+    }
+  }
+
+  // Aperçu des créneaux tels qu'ils seraient enregistrés (un par jour coché), pour le calcul de conflits en direct.
+  const creneauxApercu: Creneau[] = useMemo(() => {
+    if (!groupeChoisi || !salleChoisie || jours.size === 0) return [];
     const ue =
       ueId === NOUVELLE_UE
         ? { id: "ue-temp", code: "", intitule: ueIntituleLibre || "(nouvelle UE)" }
@@ -83,10 +106,10 @@ export function CreneauFormModal({
       enseignantId === NOUVEL_ENSEIGNANT
         ? { id: "e-temp", nom: nouvelEnseignant.nom || "?", prenom: nouvelEnseignant.prenom || "?" }
         : enseignants.find((e) => e.id === enseignantId);
-    if (!ue || !enseignant) return null;
+    if (!ue || !enseignant) return [];
 
-    return {
-      id: creneau?.id ?? "temp-nouveau",
+    return Array.from(jours).map((jour, i) => ({
+      id: modeEdition ? (creneau?.id ?? `temp-${i}`) : `temp-nouveau-${i}`,
       ue,
       enseignant,
       groupe: groupeChoisi,
@@ -95,14 +118,15 @@ export function CreneauFormModal({
       heureDebut,
       heureFin,
       statut: creneau?.statut ?? "normal",
-    };
+    }));
   }, [
     creneau,
+    modeEdition,
     groupeChoisi,
     salleChoisie,
+    jours,
     heureDebut,
     heureFin,
-    jour,
     ueId,
     ueIntituleLibre,
     unitesEnseignement,
@@ -112,10 +136,14 @@ export function CreneauFormModal({
   ]);
 
   const conflits = useMemo(() => {
-    if (!creneauApercu) return [];
-    const liste = [...creneauxExistants, creneauApercu];
-    return detecterConflits(liste).filter((c) => c.creneauxConcernes.includes(creneauApercu.id));
-  }, [creneauApercu, creneauxExistants]);
+    if (creneauxApercu.length === 0) return [];
+    // Les créneaux d'aperçu sont toujours sur des jours distincts (un par
+    // case cochée) : ils ne peuvent jamais entrer en conflit entre eux, donc
+    // pas de risque de doublon ici — chaque paire n'est évaluée qu'une fois.
+    const idsApercu = new Set(creneauxApercu.map((c) => c.id));
+    const liste = [...creneauxExistants, ...creneauxApercu];
+    return detecterConflits(liste).filter((c) => c.creneauxConcernes.some((id) => idsApercu.has(id)));
+  }, [creneauxApercu, creneauxExistants]);
 
   const motifRequis = modeEdition; // FR-EDT-02 : motif obligatoire dès qu'on modifie un créneau existant
   const motifManquant = motifRequis && !motif.trim();
@@ -126,7 +154,8 @@ export function CreneauFormModal({
   const nouvelleUeIncomplete = ueId === NOUVELLE_UE && !ueIntituleLibre.trim();
 
   const peutEnregistrer =
-    creneauApercu !== null &&
+    creneauxApercu.length > 0 &&
+    heureFin > heureDebut &&
     !motifManquant &&
     !derogationManquante &&
     !nouvelEnseignantIncomplet &&
@@ -153,7 +182,7 @@ export function CreneauFormModal({
   }
 
   async function handleEnregistrer() {
-    if (!creneauApercu) return;
+    if (creneauxApercu.length === 0) return;
     setErreur(null);
     setEnCours(true);
 
@@ -168,15 +197,15 @@ export function CreneauFormModal({
         ? { id: `ue-${crypto.randomUUID().slice(0, 8)}`, code: "", intitule: ueIntituleLibre.trim() }
         : (unitesEnseignement.find((u) => u.id === ueId) as UniteEnseignement);
 
-    const resultat: Creneau = {
-      ...creneauApercu,
+    const resultats: Creneau[] = creneauxApercu.map((apercu) => ({
+      ...apercu,
       ue,
       enseignant,
       statut: modeEdition ? "modifie" : "normal",
       motif: modeEdition ? motif.trim() : undefined,
-    };
+    }));
 
-    onSave(resultat, conflits.length > 0 ? motifDerogation.trim() : null);
+    onSave(resultats, conflits.length > 0 ? motifDerogation.trim() : null);
     setEnCours(false);
   }
 
@@ -186,7 +215,7 @@ export function CreneauFormModal({
       setErreur("Un motif est obligatoire pour annuler un cours.");
       return;
     }
-    onSave({ ...creneau, statut: "annule", motif: motif.trim() }, null);
+    onSave([{ ...creneau, statut: "annule", motif: motif.trim() }], null);
   }
 
   return (
@@ -306,48 +335,63 @@ export function CreneauFormModal({
             </select>
           </div>
 
-          {/* Jour + horaires */}
-          <div className="grid grid-cols-3 gap-3">
+          {/* Jours */}
+          <div>
+            <label className="text-sm font-medium text-text">
+              {modeEdition ? "Jour" : "Jour(s) — un cours peut se répéter plusieurs fois par semaine"}
+            </label>
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {JOURS.map((j) => {
+                const actif = jours.has(j.value);
+                return (
+                  <button
+                    key={j.value}
+                    type="button"
+                    onClick={() => toggleJour(j.value)}
+                    className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
+                      actif
+                        ? "border-brand bg-brand text-white"
+                        : "border-border text-text-muted hover:bg-surface-muted"
+                    }`}
+                  >
+                    {j.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Horaires */}
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-sm font-medium text-text">Jour</label>
+              <label className="text-sm font-medium text-text">Début</label>
               <select
-                value={jour}
-                onChange={(e) => setJour(e.target.value as Creneau["jour"])}
+                value={heureDebut}
+                onChange={(e) => setHeureDebut(e.target.value)}
                 className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
               >
-                {JOURS.map((j) => (
-                  <option key={j.value} value={j.value}>
-                    {j.label}
+                {OPTIONS_HEURE.map((h) => (
+                  <option key={h} value={h}>
+                    {h}
                   </option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="text-sm font-medium text-text">Début</label>
-              <input
-                type="time"
-                min="07:00"
-                max="18:00"
-                value={heureDebut}
-                onChange={(e) => setHeureDebut(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
               <label className="text-sm font-medium text-text">Fin</label>
-              <input
-                type="time"
-                min="07:00"
-                max="18:00"
+              <select
                 value={heureFin}
                 onChange={(e) => setHeureFin(e.target.value)}
                 className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
-              />
+              >
+                {optionsHeureFin.map((h) => (
+                  <option key={h} value={h}>
+                    {h}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
-          {heureFin <= heureDebut ? (
-            <p className="text-xs text-status-danger">L&apos;heure de fin doit être après l&apos;heure de début.</p>
-          ) : null}
 
           {/* Motif (édition/annulation) */}
           {modeEdition ? (

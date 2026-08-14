@@ -61,8 +61,22 @@ npm run build      # build de production
 - `src/app/api/enseignants/route.ts` — provisionnement d'un compte enseignant
   à la volée depuis le formulaire de créneau (nom/prénom/identifiant
   uniquement, jamais de mot de passe saisi par la scolarité — l'enseignant
-  active son compte lui-même via `/activation`, FR-AUTH-03/04). Les données
-  créées vivent en mémoire du process `next dev` : perdues au redémarrage.
+  active son compte lui-même via `/activation`, FR-AUTH-03/04 ; FR-REF-04/05
+  dans le SRS).
+- `src/app/api/salles/route.ts` — création de salle (FR-REF-02) depuis
+  `/scolarite/salles`.
+
+Ces trois routes de provisionnement (`enseignants`, `salles`, `auth`) gardent
+leurs données en mémoire du process `next dev` : perdues au redémarrage.
+**Détail important pour la suite** : les pages qui affichent ces listes
+(`/scolarite/salles`, le formulaire de créneau) ne les récupèrent **pas** via
+un import statique de `mock-data.ts`, mais via un `fetch()` client vers la
+route `GET` correspondante au chargement. C'est volontaire : en dev, Turbopack
+(Next.js 16) ne garantit pas qu'une Page et une Route Handler partagent la
+même instance de module — un import statique affichait donc des données
+périmées après une création via l'API, même si celle-ci avait réussi. Passer
+par une vraie requête HTTP contourne le problème. Cette contrainte disparaît
+avec un vrai backend (la donnée vivra en base, pas en mémoire JS).
 
 Tout ce qui est mock est commenté comme tel dans le code, avec une référence à
 l'exigence SRS concernée.
@@ -142,3 +156,10 @@ pour cette version.
   font que masquer la carte localement (pas de dérogation tracée) ; la vraie
   dérogation avec motif se fait via "Corriger" / "Modifier salle", qui ouvre
   le formulaire de créneau (FR-CONF-07/08).
+- **Les créneaux créés/modifiés sur `/scolarite/planning` ne sont pas visibles
+  côté étudiant/enseignant.** `MOCK_CRENEAUX` (vues étudiant/enseignant) et
+  `MOCK_CRENEAUX_SCOLARITE` (vue scolarité) sont deux jeux de données mock
+  distincts, et les créneaux créés en scolarité restent en state local de
+  cette page (pas encore de route `POST /api/creneaux`). À corriger quand le
+  formulaire de créneau sera branché sur une vraie API : un seul jeu de
+  données, une seule source de vérité.

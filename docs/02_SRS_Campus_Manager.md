@@ -34,6 +34,10 @@ Périmètre : MVP à 3 acteurs (Étudiant, Enseignant, Scolarité d'UFR), une se
 | FR-REF-01 | Le Système DOIT permettre à la Scolarité d'UFR d'importer les référentiels (filières, niveaux, groupes, UE, salles, enseignants) via un fichier structuré (Excel/CSV). |
 | FR-REF-02 | Le Système DOIT permettre à la Scolarité d'UFR de créer/modifier une salle avec au minimum : nom, capacité d'accueil, structure gestionnaire, type d'usage. |
 | FR-REF-03 | Chaque salle DOIT être rattachée à exactement une structure gestionnaire (pour le MVP : toujours l'UFR pilote — champ conservé pour compatibilité V2). |
+| FR-REF-04 | Le Système DOIT permettre à la Scolarité d'UFR de provisionner un compte enseignant (nom, prénom, identifiant) directement depuis l'écran de création de créneau, lorsque l'enseignant n'existe pas encore dans le référentiel. |
+| FR-REF-05 | Ce compte enseignant provisionné via FR-REF-04 NE DOIT PAS être créé avec un mot de passe saisi par la Scolarité. Il DOIT rester dans l'état "non activé" jusqu'à ce que l'enseignant l'active lui-même (FR-AUTH-03). |
+
+> Décision de cadrage 2026-08-14 : FR-REF-04/05 comblent un manque identifié à l'usage — la Scolarité provisionne des comptes enseignants ponctuellement, pas seulement par import en masse (FR-REF-01). Les deux mécanismes restent conformes à INT-02 (aucune auto-inscription) puisque c'est toujours la Scolarité qui initie la création du compte.
 
 ### 2.3 Construction de l'emploi du temps
 
