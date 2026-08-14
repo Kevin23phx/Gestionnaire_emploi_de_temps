@@ -42,12 +42,16 @@ const NAV_ITEMS: Record<Role, NavItem[]> = {
 
 export function Sidebar({
   role,
+  roleLabel,
   nom,
   prenom,
+  onNavigate,
 }: {
   role: Role;
+  roleLabel: string;
   nom: string;
   prenom: string;
+  onNavigate?: () => void;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -66,7 +70,7 @@ export function Sidebar({
           </div>
           <div>
             <p className="text-sm font-bold leading-none text-brand">Campus Manager</p>
-            <p className="text-xs text-text-subtle">Portail Administratif</p>
+            <p className="text-xs text-text-subtle">{roleLabel}</p>
           </div>
         </div>
 
@@ -77,6 +81,7 @@ export function Sidebar({
               <Link
                 key={href}
                 href={href}
+                onClick={onNavigate}
                 className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
                   actif
                     ? "bg-brand-light font-medium text-brand"
@@ -94,6 +99,7 @@ export function Sidebar({
       <div>
         <Link
           href="/aide"
+          onClick={onNavigate}
           className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-text-muted hover:bg-surface-muted"
         >
           <HelpCircle className="h-4 w-4" aria-hidden="true" />

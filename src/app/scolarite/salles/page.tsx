@@ -19,8 +19,8 @@ export default function SallesPage() {
         </p>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-border bg-surface">
-        <table className="w-full text-left text-sm">
+      <div className="overflow-x-auto rounded-xl border border-border bg-surface">
+        <table className="w-full min-w-[560px] text-left text-sm">
           <thead>
             <tr className="text-xs uppercase tracking-wide text-text-subtle">
               <th className="px-4 py-2 font-medium">Salle</th>
