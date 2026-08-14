@@ -21,6 +21,8 @@ const UE_BDD: UniteEnseignement = { id: "ue-bdd", code: "INFO302", intitule: "Ba
 const UE_RESEAUX: UniteEnseignement = { id: "ue-reseaux", code: "INFO303", intitule: "Réseaux I" };
 const UE_PROG_C: UniteEnseignement = { id: "ue-prog-c", code: "INFO201", intitule: "Programmation C" };
 
+export const MOCK_UNITES_ENSEIGNEMENT: UniteEnseignement[] = [UE_ALGO, UE_BDD, UE_RESEAUX, UE_PROG_C];
+
 export const MOCK_UTILISATEURS: (Utilisateur & { motDePasse: string; identifiant: string })[] = [
   {
     id: "u-etu-1",

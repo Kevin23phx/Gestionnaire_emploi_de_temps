@@ -31,7 +31,9 @@ export async function POST(request: Request) {
     );
   }
 
-  // Dans la vraie API : persister le nouveau mot de passe (hash) sur le compte pré-provisionné.
+  // Dans la vraie API : hasher le mot de passe avant de le persister.
+  utilisateur.motDePasse = nouveauMotDePasse;
+
   const session: Session = {
     userId: utilisateur.id,
     role: utilisateur.role,

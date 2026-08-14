@@ -30,9 +30,11 @@ function heureVersLigne(heure: string): number {
 export function ScheduleWeekGrid({
   creneaux,
   renderMeta,
+  onCreneauClick,
 }: {
   creneaux: Creneau[];
   renderMeta: (creneau: Creneau) => string;
+  onCreneauClick?: (creneau: Creneau) => void;
 }) {
   return (
     <div className="overflow-x-auto rounded-xl border border-border bg-surface">
@@ -85,7 +87,10 @@ export function ScheduleWeekGrid({
           return (
             <div
               key={creneau.id}
-              className={`relative z-10 m-1 overflow-hidden rounded-lg border p-2 text-xs ${CARTE_CLASSES[creneau.statut]}`}
+              onClick={onCreneauClick ? () => onCreneauClick(creneau) : undefined}
+              className={`relative z-10 m-1 overflow-hidden rounded-lg border p-2 text-xs ${CARTE_CLASSES[creneau.statut]} ${
+                onCreneauClick ? "cursor-pointer hover:ring-2 hover:ring-brand" : ""
+              }`}
               style={{ gridColumn: dIndex + 2, gridRow: `${ligneDebut} / ${ligneFin}` }}
             >
               <div className="mb-1 flex items-center justify-between gap-1">

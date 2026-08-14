@@ -9,11 +9,18 @@ import { SESSION_COOKIE, type Session } from "@/lib/session";
 export async function POST(request: Request) {
   const { identifiant, motDePasse } = await request.json();
 
-  const utilisateur = MOCK_UTILISATEURS.find(
-    (u) => u.identifiant === identifiant && u.motDePasse === motDePasse
-  );
+  const utilisateur = MOCK_UTILISATEURS.find((u) => u.identifiant === identifiant);
 
-  if (!utilisateur) {
+  if (!utilisateur || !utilisateur.motDePasse) {
+    // FR-AUTH-03 : un compte pré-provisionné sans mot de passe n'est pas
+    // encore activé — il doit d'abord passer par /activation.
+    return NextResponse.json(
+      { erreur: "Identifiant ou mot de passe incorrect." },
+      { status: 401 }
+    );
+  }
+
+  if (utilisateur.motDePasse !== motDePasse) {
     return NextResponse.json(
       { erreur: "Identifiant ou mot de passe incorrect." },
       { status: 401 }
