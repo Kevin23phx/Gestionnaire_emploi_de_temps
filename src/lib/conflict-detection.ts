@@ -67,7 +67,7 @@ export function detecterConflits(creneaux: Creneau[]): ConflitDetecte[] {
         type: "capacite",
         gravite: "avertissement",
         titre: `Capacité dépassée — ${c.salle.nom}`,
-        description: `Groupe ${c.groupe.nom} (${c.groupe.effectif} pers.) assigné dans une salle de ${c.salle.capacite} places.`,
+        description: `Groupe ${c.groupe.nom} (${c.groupe.effectif} pers.) assigné dans une salle de ${c.salle.capacite} places (${c.jour} ${c.heureDebut}-${c.heureFin}).`,
         creneauxConcernes: [c.id],
       });
     }

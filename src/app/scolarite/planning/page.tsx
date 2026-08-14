@@ -15,6 +15,7 @@ export default function PlanningScolaritePage() {
   const [creneaux, setCreneaux] = useState<Creneau[]>(MOCK_CRENEAUX_SCOLARITE);
   const [enseignants, setEnseignants] = useState<Enseignant[] | null>(null);
   const [salles, setSalles] = useState<Salle[] | null>(null);
+  const [auteur, setAuteur] = useState("Scolarité");
   const [modal, setModal] = useState<EtatModal>(null);
   const [confirmation, setConfirmation] = useState<string | null>(null);
 
@@ -25,6 +26,9 @@ export default function PlanningScolaritePage() {
     fetch("/api/salles")
       .then((r) => r.json())
       .then((data) => setSalles(data.salles));
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((data) => data.nom && setAuteur(`${data.prenom} ${data.nom}`));
   }, []);
 
   const conflits = useMemo(() => detecterConflits(creneaux), [creneaux]);
@@ -36,12 +40,39 @@ export default function PlanningScolaritePage() {
     if (cible) setModal({ mode: "edition", creneau: cible });
   }
 
+  // FR-AUD-01 : chaque création, modification ou annulation est historisée
+  // (auteur, date, action, motif) — y compris les dérogations à un conflit
+  // (FR-CONF-08).
+  function journaliser(action: string, motif: string | undefined) {
+    fetch("/api/audit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ auteur, action, motif }),
+    }).catch(() => {
+      // Le journal est un mock en mémoire : une écriture manquée ici n'empêche
+      // pas l'enregistrement du créneau, elle est simplement silencieuse.
+    });
+  }
+
   function handleSave(resultats: Creneau[], motifDerogation: string | null) {
+    // Les appels réseau (journaliser) doivent rester HORS du updater de
+    // setCreneaux : React (Strict Mode, actif en dev) peut invoquer un
+    // updater deux fois pour détecter les effets de bord mal placés — un
+    // simple calcul de nouvel état le tolère très bien, un fetch() non.
+    for (const resultat of resultats) {
+      const existant = creneaux.some((c) => c.id === resultat.id);
+      const type = !existant ? "Création" : resultat.statut === "annule" ? "Annulation" : "Modification";
+      journaliser(
+        `${type} créneau — ${resultat.ue.intitule} (${resultat.jour} ${resultat.heureDebut}-${resultat.heureFin})`,
+        resultat.motif ?? motifDerogation ?? undefined
+      );
+    }
+
     setCreneaux((prev) => {
       let suivant = prev;
       for (const resultat of resultats) {
-        const existeDeja = suivant.some((c) => c.id === resultat.id);
-        suivant = existeDeja
+        const existant = suivant.some((c) => c.id === resultat.id);
+        suivant = existant
           ? suivant.map((c) => (c.id === resultat.id ? resultat : c))
           : [...suivant, { ...resultat, id: `c-${crypto.randomUUID().slice(0, 8)}` }];
       }
@@ -78,13 +109,21 @@ export default function PlanningScolaritePage() {
         </p>
       ) : null}
 
+      {/* Sur mobile, les alertes passent avant la grille (order-1/order-2) :
+          la grille seule peut être longue, on ne veut pas que les conflits
+          passent inaperçus tout en bas. À partir de lg, on revient à la
+          disposition grille + panneau latéral. */}
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-        <ScheduleWeekGrid
-          creneaux={creneaux}
-          renderMeta={(c) => `${c.salle.nom} · ${c.groupe.nom} · ${c.enseignant.prenom} ${c.enseignant.nom}`}
-          onCreneauClick={(c) => ouvrirEdition(c.id)}
-        />
-        <ConflictPanel conflits={conflits} onCorriger={ouvrirEdition} />
+        <div className="order-2 lg:order-1">
+          <ScheduleWeekGrid
+            creneaux={creneaux}
+            renderMeta={(c) => `${c.salle.nom} · ${c.groupe.nom} · ${c.enseignant.prenom} ${c.enseignant.nom}`}
+            onCreneauClick={(c) => ouvrirEdition(c.id)}
+          />
+        </div>
+        <div className="order-1 lg:order-2">
+          <ConflictPanel conflits={conflits} onCorriger={ouvrirEdition} />
+        </div>
       </div>
 
       {modal && enseignants && salles ? (

@@ -1,8 +1,19 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { Download } from "lucide-react";
-import { MOCK_AUDIT } from "@/lib/mock-data";
+import type { AuditEntry } from "@/lib/types";
 import { AuditTable } from "@/components/audit/AuditTable";
 
 export default function JournalAuditPage() {
+  const [entries, setEntries] = useState<AuditEntry[] | null>(null);
+
+  useEffect(() => {
+    fetch("/api/audit")
+      .then((r) => r.json())
+      .then((data) => setEntries([...data.entries].reverse()));
+  }, []);
+
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
@@ -14,7 +25,11 @@ export default function JournalAuditPage() {
         </button>
       </div>
       <div className="rounded-xl border border-border bg-surface">
-        <AuditTable entries={MOCK_AUDIT} />
+        {entries ? (
+          <AuditTable entries={entries} />
+        ) : (
+          <p className="px-4 py-6 text-center text-sm text-text-muted">Chargement...</p>
+        )}
       </div>
     </div>
   );

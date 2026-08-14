@@ -33,6 +33,72 @@ function heureVersLigne(heure: string): number {
   return h - HEURE_DEBUT + 2; // +2 : ligne 1 = en-tête des jours
 }
 
+function chevauchentHoraire(a: Creneau, b: Creneau): boolean {
+  return a.heureDebut < b.heureFin && b.heureDebut < a.heureFin;
+}
+
+// Regroupe les créneaux d'un même jour qui se chevauchent dans le temps, pour
+// qu'ils soient affichés côte à côte plutôt que superposés (l'un cachant
+// l'autre) — cas réel rencontré dès qu'un conflit de salle/enseignant/groupe
+// existe, exactement ce que le moteur de conflits (FR-CONF-01→03) doit faire
+// remarquer, pas dissimuler.
+function grouperChevauchements(creneauxJour: Creneau[]): Creneau[][] {
+  const groupes: Creneau[][] = [];
+  for (const creneau of creneauxJour) {
+    const chevauchants = groupes.filter((g) => g.some((c) => chevauchentHoraire(c, creneau)));
+    if (chevauchants.length === 0) {
+      groupes.push([creneau]);
+      continue;
+    }
+    const [premier, ...autres] = chevauchants;
+    premier.push(creneau);
+    for (const autre of autres) {
+      premier.push(...autre);
+      groupes.splice(groupes.indexOf(autre), 1);
+    }
+  }
+  return groupes;
+}
+
+function CarteCreneau({
+  creneau,
+  renderMeta,
+  onCreneauClick,
+}: {
+  creneau: Creneau;
+  renderMeta: (creneau: Creneau) => string;
+  onCreneauClick?: (creneau: Creneau) => void;
+}) {
+  return (
+    <div
+      onClick={onCreneauClick ? () => onCreneauClick(creneau) : undefined}
+      className={`flex min-w-0 flex-1 flex-col gap-0.5 overflow-hidden rounded-md p-2 shadow-sm ${CARTE_CLASSES[creneau.statut]} ${
+        onCreneauClick ? "cursor-pointer hover:shadow-md hover:brightness-95" : ""
+      }`}
+    >
+      <p
+        className={`truncate text-sm font-semibold leading-tight text-text ${
+          creneau.statut === "annule" ? "line-through opacity-70" : ""
+        }`}
+        title={creneau.ue.intitule}
+      >
+        {creneau.ue.intitule}
+      </p>
+      <p className="text-xs font-medium text-text-muted">
+        {creneau.heureDebut}–{creneau.heureFin}
+      </p>
+      <p className="truncate text-xs text-text-muted" title={renderMeta(creneau)}>
+        {renderMeta(creneau)}
+      </p>
+      {creneau.motif ? (
+        <p className="truncate text-xs italic text-text-subtle" title={creneau.motif}>
+          Motif : {creneau.motif}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 // Affiche l'emploi du temps hebdomadaire — même composant pour les vues étudiant,
 // enseignant et scolarité (seul le contenu des cartes de créneau varie via `renderMeta`).
 export function ScheduleWeekGrid({
@@ -95,38 +161,33 @@ export function ScheduleWeekGrid({
             ))
           )}
 
-          {/* Créneaux */}
-          {creneaux.map((creneau) => {
-            const dIndex = JOURS.findIndex((j) => j.key === creneau.jour);
-            if (dIndex === -1) return null;
-            const ligneDebut = heureVersLigne(creneau.heureDebut);
-            const ligneFin = heureVersLigne(creneau.heureFin);
+          {/* Créneaux, groupés par jour et par chevauchement horaire */}
+          {JOURS.map((jour, dIndex) => {
+            const creneauxJour = creneaux.filter((c) => c.jour === jour.key);
+            const groupes = grouperChevauchements(creneauxJour);
 
-            return (
-              <div
-                key={creneau.id}
-                onClick={onCreneauClick ? () => onCreneauClick(creneau) : undefined}
-                className={`relative z-10 m-1 flex flex-col gap-0.5 overflow-hidden rounded-md p-2 shadow-sm ${CARTE_CLASSES[creneau.statut]} ${
-                  onCreneauClick ? "cursor-pointer hover:shadow-md hover:brightness-95" : ""
-                }`}
-                style={{ gridColumn: dIndex + 2, gridRow: `${ligneDebut} / ${ligneFin}` }}
-              >
-                <p
-                  className={`text-sm font-semibold leading-tight text-text ${
-                    creneau.statut === "annule" ? "line-through opacity-70" : ""
-                  }`}
+            return groupes.map((groupe) => {
+              const ligneDebut = Math.min(...groupe.map((c) => heureVersLigne(c.heureDebut)));
+              const ligneFin = Math.max(...groupe.map((c) => heureVersLigne(c.heureFin)));
+              const cle = groupe.map((c) => c.id).join("+");
+
+              return (
+                <div
+                  key={cle}
+                  className="relative z-10 m-1 flex gap-1"
+                  style={{ gridColumn: dIndex + 2, gridRow: `${ligneDebut} / ${ligneFin}` }}
                 >
-                  {creneau.ue.intitule}
-                </p>
-                <p className="text-xs font-medium text-text-muted">
-                  {creneau.heureDebut}–{creneau.heureFin}
-                </p>
-                <p className="truncate text-xs text-text-muted">{renderMeta(creneau)}</p>
-                {creneau.motif ? (
-                  <p className="truncate text-xs italic text-text-subtle">Motif : {creneau.motif}</p>
-                ) : null}
-              </div>
-            );
+                  {groupe.map((creneau) => (
+                    <CarteCreneau
+                      key={creneau.id}
+                      creneau={creneau}
+                      renderMeta={renderMeta}
+                      onCreneauClick={onCreneauClick}
+                    />
+                  ))}
+                </div>
+              );
+            });
           })}
         </div>
       </div>

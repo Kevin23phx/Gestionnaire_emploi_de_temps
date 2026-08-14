@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
-import type { Salle, TypeUsageSalle } from "@/lib/types";
+import type { Salle, StructureGestionnaire, TypeUsageSalle } from "@/lib/types";
 import { SalleFormModal } from "@/components/salles/SalleFormModal";
 
 const USAGE_LABEL: Record<TypeUsageSalle, string> = {
@@ -10,6 +10,13 @@ const USAGE_LABEL: Record<TypeUsageSalle, string> = {
   commune: "Commune",
   louee: "Louée",
   gratuite: "Gratuite",
+};
+
+// Seule valeur possible pour le MVP (RM-05) — la table est prête à accueillir
+// d'autres structures (DEP, etc.) dès qu'elles seront identifiées, sans
+// jamais laisser un code technique brut fuiter dans l'interface.
+const GESTIONNAIRE_LABEL: Record<StructureGestionnaire, string> = {
+  UFR_PILOTE: "UFR pilote",
 };
 
 export default function SallesPage() {
@@ -59,7 +66,9 @@ export default function SallesPage() {
                 <td className="px-4 py-2 font-medium text-text">{salle.nom}</td>
                 <td className="px-4 py-2 text-text-muted">{salle.batiment}</td>
                 <td className="px-4 py-2 text-text-muted">{salle.capacite} pl.</td>
-                <td className="px-4 py-2 text-text-muted">{salle.structureGestionnaire}</td>
+                <td className="px-4 py-2 text-text-muted">
+                  {GESTIONNAIRE_LABEL[salle.structureGestionnaire]}
+                </td>
                 <td className="px-4 py-2 text-text-muted">{USAGE_LABEL[salle.typeUsage]}</td>
               </tr>
             ))}

@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { MOCK_AUDIT, MOCK_DASHBOARD_STATS } from "@/lib/mock-data";
-import { AuditTable } from "@/components/audit/AuditTable";
+import { MOCK_DASHBOARD_STATS } from "@/lib/mock-data";
+import { AuditApercu } from "@/components/audit/AuditApercu";
 
 export default function TableauDeBordScolaritePage() {
   const stats = MOCK_DASHBOARD_STATS;
@@ -41,7 +41,7 @@ export default function TableauDeBordScolaritePage() {
             Voir tout
           </Link>
         </div>
-        <AuditTable entries={MOCK_AUDIT.slice(0, 5)} />
+        <AuditApercu />
       </div>
     </div>
   );
