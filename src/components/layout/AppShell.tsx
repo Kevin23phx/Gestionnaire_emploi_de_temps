@@ -39,7 +39,7 @@ export function AppShell({
   }, []);
 
   return (
-    <div className="flex flex-1">
+    <div className="flex min-w-0 flex-1">
       <div className="fixed inset-x-0 top-0 z-30 flex items-center gap-3 border-b border-border bg-surface px-4 py-3 md:hidden">
         <button
           onClick={() => setOuvert(true)}
@@ -73,9 +73,11 @@ export function AppShell({
         />
       </div>
 
-      <div className="flex flex-1 flex-col pt-14 md:pt-0">
+      <div className="flex min-w-0 flex-1 flex-col pt-14 md:pt-0">
         <OfflineBanner />
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
+        <main className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6">
+          {children}
+        </main>
       </div>
     </div>
   );
