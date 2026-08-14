@@ -58,6 +58,11 @@ npm run build      # build de production
   conflits (FR-CONF-01→04) pour donner à voir de vrais résultats à l'écran
   `/scolarite/planning`. **La version qui fait foi doit vivre côté API**
   (`ConflictEngineModule`, cf. [`docs/04_Exigence_Architecture_Campus_Manager.md`](docs/04_Exigence_Architecture_Campus_Manager.md)).
+- `src/app/api/enseignants/route.ts` — provisionnement d'un compte enseignant
+  à la volée depuis le formulaire de créneau (nom/prénom/identifiant
+  uniquement, jamais de mot de passe saisi par la scolarité — l'enseignant
+  active son compte lui-même via `/activation`, FR-AUTH-03/04). Les données
+  créées vivent en mémoire du process `next dev` : perdues au redémarrage.
 
 Tout ce qui est mock est commenté comme tel dans le code, avec une référence à
 l'exigence SRS concernée.
@@ -125,10 +130,15 @@ pour cette version.
 
 ## Connu comme non fini (prochaines étapes frontend)
 
-- Formulaire de création/modification de créneau (FR-EDT-01/02/03) — les
-  boutons "Corriger" / "Modifier salle" du panneau de conflits ne sont pas
-  encore câblés.
+- Le formulaire de créneau (`CreneauFormModal`) et le provisionnement
+  d'enseignant à la volée (`POST /api/enseignants`) sont en place, mais rien
+  n'est persisté au-delà de la session du serveur de dev (données en mémoire,
+  perdues au redémarrage) — normal tant qu'il n'y a pas de vraie base.
 - Vraie pagination / filtres sur le journal d'audit et le référentiel des
   salles (FR-REF-01 : import Excel/CSV).
 - Remplacement du cookie de session mock par un vrai mécanisme d'auth une
   fois l'API disponible.
+- Les actions "Ignorer" / "Valider malgré tout" du panneau de conflits ne
+  font que masquer la carte localement (pas de dérogation tracée) ; la vraie
+  dérogation avec motif se fait via "Corriger" / "Modifier salle", qui ouvre
+  le formulaire de créneau (FR-CONF-07/08).
