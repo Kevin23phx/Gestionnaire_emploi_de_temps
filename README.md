@@ -160,6 +160,13 @@ pour cette version.
   côté étudiant/enseignant.** `MOCK_CRENEAUX` (vues étudiant/enseignant) et
   `MOCK_CRENEAUX_SCOLARITE` (vue scolarité) sont deux jeux de données mock
   distincts, et les créneaux créés en scolarité restent en state local de
-  cette page (pas encore de route `POST /api/creneaux`). À corriger quand le
-  formulaire de créneau sera branché sur une vraie API : un seul jeu de
-  données, une seule source de vérité.
+  cette page (pas encore de route `POST /api/creneaux`, contrairement aux
+  enseignants, salles et au journal d'audit qui ont chacun leur route). À
+  corriger quand le formulaire de créneau sera branché sur une vraie API :
+  un seul jeu de données, une seule source de vérité.
+- Journal d'audit (`/scolarite/audit`, `POST /api/audit`) : les entrées
+  créées pendant la session sont bien écrites, mais le champ `motif` de
+  dérogation d'un conflit *avertissement* "Ignoré" / "Validé malgré tout"
+  (boutons secondaires du panneau de conflits) n'y est pas tracé — seul le
+  passage par le formulaire de créneau ("Corriger" / "Modifier salle")
+  écrit dans le journal.
