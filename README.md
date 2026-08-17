@@ -65,11 +65,27 @@ npm run build      # build de production
   dans le SRS).
 - `src/app/api/salles/route.ts` — création de salle (FR-REF-02) depuis
   `/scolarite/salles`.
+- `src/app/api/groupes/route.ts`, `src/app/api/cours/route.ts` — référentiel
+  des groupes et des unités d'enseignement (FR-REF-01), depuis
+  `/scolarite/groupes`, `/scolarite/cours`, et le raccourci "+ Autre
+  (préciser)" du formulaire de créneau.
+- `src/app/api/creneaux/route.ts` — création/modification de créneau
+  (FR-EDT-01/02/03) depuis `/scolarite/planning/[groupeId]`. Un "programme"
+  = l'emploi du temps d'**un seul groupe** (décision de cadrage
+  2026-08-17) : `/scolarite/planning` liste un programme par groupe,
+  `/scolarite/planning/[groupeId]` est la feuille dédiée à un groupe (le
+  formulaire de créneau y reçoit `groupes={[leGroupeCourant]}`, verrouillé).
+  Le moteur de conflits, lui, reste vérifié contre **tous** les créneaux de
+  l'UFR pilote, pas seulement ceux du groupe affiché — une salle ou un
+  enseignant réservé en double par un autre groupe doit rester un vrai
+  conflit (FR-CONF-01/02).
+- `src/app/api/audit/route.ts` — journal d'audit (FR-AUD-01), écrit par
+  `/scolarite/planning/[groupeId]` à chaque création/modification/annulation
+  de créneau, lu par `/scolarite/audit` et l'aperçu du tableau de bord.
 
-Ces trois routes de provisionnement (`enseignants`, `salles`, `auth`) gardent
-leurs données en mémoire du process `next dev` : perdues au redémarrage.
-**Détail important pour la suite** : les pages qui affichent ces listes
-(`/scolarite/salles`, le formulaire de créneau) ne les récupèrent **pas** via
+Toutes ces routes gardent leurs données en mémoire du process `next dev` :
+perdues au redémarrage. **Détail important pour la suite** : les pages qui
+affichent ces listes ne les récupèrent **pas** via
 un import statique de `mock-data.ts`, mais via un `fetch()` client vers la
 route `GET` correspondante au chargement. C'est volontaire : en dev, Turbopack
 (Next.js 16) ne garantit pas qu'une Page et une Route Handler partagent la
@@ -156,14 +172,15 @@ pour cette version.
   font que masquer la carte localement (pas de dérogation tracée) ; la vraie
   dérogation avec motif se fait via "Corriger" / "Modifier salle", qui ouvre
   le formulaire de créneau (FR-CONF-07/08).
-- **Les créneaux créés/modifiés sur `/scolarite/planning` ne sont pas visibles
-  côté étudiant/enseignant.** `MOCK_CRENEAUX` (vues étudiant/enseignant) et
-  `MOCK_CRENEAUX_SCOLARITE` (vue scolarité) sont deux jeux de données mock
-  distincts, et les créneaux créés en scolarité restent en state local de
-  cette page (pas encore de route `POST /api/creneaux`, contrairement aux
-  enseignants, salles et au journal d'audit qui ont chacun leur route). À
-  corriger quand le formulaire de créneau sera branché sur une vraie API :
-  un seul jeu de données, une seule source de vérité.
+- **Les créneaux créés/modifiés côté scolarité ne sont pas visibles côté
+  étudiant/enseignant.** Depuis la restructuration en "programmes" (un par
+  groupe, décision de cadrage 2026-08-17), `/scolarite/planning/[groupeId]`
+  passe bien par `GET/POST /api/creneaux` (une seule source de vérité côté
+  scolarité). Mais les vues étudiant/enseignant lisent encore
+  `MOCK_CRENEAUX`, un jeu de données mock séparé de celui que sert cette
+  route (`MOCK_CRENEAUX_SCOLARITE`). À corriger en pointant aussi les vues
+  étudiant/enseignant vers `/api/creneaux` (filtré par `groupeId`/
+  `enseignantId`) une fois l'API réelle disponible.
 - Journal d'audit (`/scolarite/audit`, `POST /api/audit`) : les entrées
   créées pendant la session sont bien écrites, mais le champ `motif` de
   dérogation d'un conflit *avertissement* "Ignoré" / "Validé malgré tout"

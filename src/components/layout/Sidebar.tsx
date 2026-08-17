@@ -35,7 +35,7 @@ const NAV_ITEMS: Record<Role, NavItem[]> = {
   ],
   scolarite: [
     { href: "/scolarite", label: "Tableau de bord", icon: LayoutDashboard },
-    { href: "/scolarite/planning", label: "Emploi du temps", icon: Calendar },
+    { href: "/scolarite/planning", label: "Programmes", icon: Calendar },
     { href: "/scolarite/salles", label: "Salles", icon: Building2 },
     { href: "/scolarite/groupes", label: "Groupes", icon: Users },
     { href: "/scolarite/cours", label: "Cours", icon: BookOpen },
@@ -79,24 +79,35 @@ export function Sidebar({
         </div>
 
         <nav className="flex flex-col gap-1">
-          {NAV_ITEMS[role].map(({ href, label, icon: Icon }) => {
-            const actif = pathname === href;
-            return (
-              <Link
-                key={href}
-                href={href}
-                onClick={onNavigate}
-                className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
-                  actif
-                    ? "bg-brand-light font-medium text-brand"
-                    : "text-text-muted hover:bg-surface-muted"
-                }`}
-              >
-                <Icon className="h-4 w-4" aria-hidden="true" />
-                {label}
-              </Link>
-            );
-          })}
+          {/* Le lien actif est le href le plus long qui correspond au chemin
+              courant (exact ou suivi de "/") : nécessaire depuis que
+              /scolarite/planning a une sous-route dynamique
+              ([groupeId]) — sinon un simple `pathname === href` ferait
+              disparaître le surlignage dès qu'on ouvre un programme. */}
+          {(() => {
+            const hrefActif = [...NAV_ITEMS[role]]
+              .sort((a, b) => b.href.length - a.href.length)
+              .find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))?.href;
+
+            return NAV_ITEMS[role].map(({ href, label, icon: Icon }) => {
+              const actif = href === hrefActif;
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  onClick={onNavigate}
+                  className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
+                    actif
+                      ? "bg-brand-light font-medium text-brand"
+                      : "text-text-muted hover:bg-surface-muted"
+                  }`}
+                >
+                  <Icon className="h-4 w-4" aria-hidden="true" />
+                  {label}
+                </Link>
+              );
+            });
+          })()}
         </nav>
       </div>
 
