@@ -10,6 +10,7 @@ import type {
   UniteEnseignement,
 } from "@/lib/types";
 import { detecterConflits } from "@/lib/conflict-detection";
+import { decouperSelonPauses } from "@/lib/pauses";
 import { ConflitGraviteBadge } from "@/components/ui/StatusBadge";
 
 const JOURS: { value: Creneau["jour"]; label: string }[] = [
@@ -84,16 +85,6 @@ export function CreneauFormModal({
   const salleChoisie = salles.find((s) => s.id === salleId);
   const optionsHeureFin = OPTIONS_HEURE.filter((h) => h > heureDebut);
 
-  // Rien n'empêche techniquement un créneau de durer 10h (RM-01 ne borne pas
-  // la durée), mais dans la pratique un séminaire de 4h est déjà long — une
-  // saisie plus longue est presque toujours une erreur d'horaire plutôt
-  // qu'un vrai cours. Avertissement non bloquant, pas une interdiction.
-  const dureeHeures =
-    heureFin > heureDebut
-      ? Number(heureFin.slice(0, 2)) - Number(heureDebut.slice(0, 2))
-      : 0;
-  const dureeInhabituelle = dureeHeures > 4;
-
   function toggleJour(jour: Creneau["jour"]) {
     if (!modeEdition) {
       setJours((prev) => {
@@ -107,7 +98,12 @@ export function CreneauFormModal({
     }
   }
 
-  // Aperçu des créneaux tels qu'ils seraient enregistrés (un par jour coché), pour le calcul de conflits en direct.
+  // Aperçu des créneaux tels qu'ils seraient enregistrés, pour le calcul de
+  // conflits en direct. Une plage saisie (ex. 08:00-18:00) est d'abord
+  // découpée en séances qui évitent les pauses fixes (decouperSelonPauses),
+  // puis multipliée par jour coché : "Lundi à Jeudi, 8h-18h" donne donc 4
+  // jours × N séances par jour, jamais un seul bloc qui engloberait une
+  // pause.
   const creneauxApercu: Creneau[] = useMemo(() => {
     if (!groupeChoisi || !salleChoisie || jours.size === 0) return [];
     const ue =
@@ -120,17 +116,27 @@ export function CreneauFormModal({
         : enseignants.find((e) => e.id === enseignantId);
     if (!ue || !enseignant) return [];
 
-    return Array.from(jours).map((jour, i) => ({
-      id: modeEdition ? (creneau?.id ?? `temp-${i}`) : `temp-nouveau-${i}`,
-      ue,
-      enseignant,
-      groupe: groupeChoisi,
-      salle: salleChoisie,
-      jour,
-      heureDebut,
-      heureFin,
-      statut: creneau?.statut ?? "normal",
-    }));
+    const segments = decouperSelonPauses(heureDebut, heureFin);
+    const resultats: Creneau[] = [];
+    let i = 0;
+    for (const jour of jours) {
+      for (const segment of segments) {
+        const premierSegment = modeEdition && i === 0;
+        resultats.push({
+          id: premierSegment ? (creneau?.id ?? "temp-0") : `temp-nouveau-${i}`,
+          ue,
+          enseignant,
+          groupe: groupeChoisi,
+          salle: salleChoisie,
+          jour,
+          heureDebut: segment.heureDebut,
+          heureFin: segment.heureFin,
+          statut: creneau?.statut ?? "normal",
+        });
+        i++;
+      }
+    }
+    return resultats;
   }, [
     creneau,
     modeEdition,
@@ -424,13 +430,10 @@ export function CreneauFormModal({
               </select>
             </div>
           </div>
-          {dureeInhabituelle ? (
-            <p className="-mt-2 rounded-lg bg-status-warning-bg px-3 py-2 text-xs text-status-warning">
-              Ce créneau dure {dureeHeures}h — vérifiez qu&apos;il ne s&apos;agit pas d&apos;une erreur de
-              saisie (la plupart des cours durent 1 à 3h). Un cours qui revient plusieurs fois par
-              semaine se règle avec les jours cochés ci-dessus, pas avec une plage horaire plus longue.
-            </p>
-          ) : null}
+          <p className="-mt-2 text-xs text-text-subtle">
+            Les pauses fixes (10h00-10h15, 12h00-13h00, 15h00-15h15) sont automatiquement retirées de la
+            plage saisie — un cours de 8h à 18h devient plusieurs séances séparées par ces pauses.
+          </p>
 
           {/* Motif (édition/annulation) */}
           {modeEdition ? (

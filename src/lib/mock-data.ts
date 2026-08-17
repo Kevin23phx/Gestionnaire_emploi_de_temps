@@ -82,14 +82,28 @@ export const MOCK_CRENEAUX: Creneau[] = [
     heureFin: "10:00",
     statut: "normal",
   },
+  // Scindé en deux séances autour de la pause de 10h00-10h15 (aucun créneau
+  // ne doit chevaucher une pause fixe, cf. décision de cadrage 2026-08-17).
   {
-    id: "c-2",
+    id: "c-2a",
     ue: UE_BDD,
     enseignant: MOCK_ENSEIGNANTS[1],
     groupe: MOCK_GROUPES[0],
     salle: MOCK_SALLES[3],
     jour: "mardi",
     heureDebut: "09:00",
+    heureFin: "10:00",
+    statut: "modifie",
+    motif: "Changement de salle demandé par l'enseignant",
+  },
+  {
+    id: "c-2b",
+    ue: UE_BDD,
+    enseignant: MOCK_ENSEIGNANTS[1],
+    groupe: MOCK_GROUPES[0],
+    salle: MOCK_SALLES[3],
+    jour: "mardi",
+    heureDebut: "10:15",
     heureFin: "12:00",
     statut: "modifie",
     motif: "Changement de salle demandé par l'enseignant",
@@ -137,13 +151,15 @@ export const MOCK_CRENEAUX_SCOLARITE: Creneau[] = [
   },
   {
     // FR-CONF-04 : groupe de 65 dans une salle de 40 places.
+    // Décalé de 10:00 à 10:15 pour ne pas chevaucher la pause fixe du matin
+    // (cf. decouperSelonPauses, décision de cadrage 2026-08-17).
     id: "c-admin-3",
     ue: UE_BDD,
     enseignant: MOCK_ENSEIGNANTS[2],
     groupe: MOCK_GROUPES[0],
     salle: MOCK_SALLES[1],
     jour: "mardi",
-    heureDebut: "10:00",
+    heureDebut: "10:15",
     heureFin: "12:00",
     statut: "normal",
   },
