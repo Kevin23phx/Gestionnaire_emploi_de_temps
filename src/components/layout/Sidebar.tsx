@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Bell,
+  BookOpen,
   Building2,
   Calendar,
   ClipboardCheck,
@@ -12,6 +13,7 @@ import {
   History,
   LayoutDashboard,
   LogOut,
+  Users,
 } from "lucide-react";
 import type { Role } from "@/lib/types";
 import { Avatar } from "@/components/ui/Avatar";
@@ -35,6 +37,8 @@ const NAV_ITEMS: Record<Role, NavItem[]> = {
     { href: "/scolarite", label: "Tableau de bord", icon: LayoutDashboard },
     { href: "/scolarite/planning", label: "Emploi du temps", icon: Calendar },
     { href: "/scolarite/salles", label: "Salles", icon: Building2 },
+    { href: "/scolarite/groupes", label: "Groupes", icon: Users },
+    { href: "/scolarite/cours", label: "Cours", icon: BookOpen },
     { href: "/scolarite/demandes", label: "Demandes", icon: ClipboardCheck },
     { href: "/scolarite/audit", label: "Journal d'audit", icon: History },
   ],

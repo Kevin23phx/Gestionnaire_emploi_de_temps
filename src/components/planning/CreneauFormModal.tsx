@@ -41,6 +41,7 @@ interface Props {
   onClose: () => void;
   onSave: (creneaux: Creneau[], motifDerogation: string | null) => void;
   onEnseignantCree: (enseignant: Enseignant) => void;
+  onUeCree: (ue: UniteEnseignement) => void;
 }
 
 // FR-EDT-01/02/03 + FR-CONF-01→08 : un seul formulaire pour créer, modifier
@@ -61,6 +62,7 @@ export function CreneauFormModal({
   onClose,
   onSave,
   onEnseignantCree,
+  onUeCree,
 }: Props) {
   const modeEdition = creneau !== null;
 
@@ -162,6 +164,25 @@ export function CreneauFormModal({
     !nouvelleUeIncomplete &&
     !enCours;
 
+  async function resoudreUe(): Promise<UniteEnseignement | null> {
+    if (ueId !== NOUVELLE_UE) {
+      return unitesEnseignement.find((u) => u.id === ueId) ?? null;
+    }
+
+    const reponse = await fetch("/api/cours", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ intitule: ueIntituleLibre }),
+    });
+    const data = await reponse.json();
+    if (!reponse.ok) {
+      setErreur(data.erreur ?? "Impossible de créer le cours.");
+      return null;
+    }
+    onUeCree(data.ue);
+    return data.ue as UniteEnseignement;
+  }
+
   async function resoudreEnseignant(): Promise<Enseignant | null> {
     if (enseignantId !== NOUVEL_ENSEIGNANT) {
       return enseignants.find((e) => e.id === enseignantId) ?? null;
@@ -186,16 +207,17 @@ export function CreneauFormModal({
     setErreur(null);
     setEnCours(true);
 
+    const ue = await resoudreUe();
+    if (!ue) {
+      setEnCours(false);
+      return;
+    }
+
     const enseignant = await resoudreEnseignant();
     if (!enseignant) {
       setEnCours(false);
       return;
     }
-
-    const ue: UniteEnseignement =
-      ueId === NOUVELLE_UE
-        ? { id: `ue-${crypto.randomUUID().slice(0, 8)}`, code: "", intitule: ueIntituleLibre.trim() }
-        : (unitesEnseignement.find((u) => u.id === ueId) as UniteEnseignement);
 
     const resultats: Creneau[] = creneauxApercu.map((apercu) => ({
       ...apercu,

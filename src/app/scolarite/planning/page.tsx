@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Plus } from "lucide-react";
-import { MOCK_CRENEAUX_SCOLARITE, MOCK_GROUPES, MOCK_UNITES_ENSEIGNEMENT } from "@/lib/mock-data";
+import { MOCK_CRENEAUX_SCOLARITE } from "@/lib/mock-data";
 import { detecterConflits } from "@/lib/conflict-detection";
-import type { Creneau, Enseignant, Salle } from "@/lib/types";
+import type { Creneau, Enseignant, Groupe, Salle, UniteEnseignement } from "@/lib/types";
 import { ScheduleWeekGrid } from "@/components/schedule/ScheduleWeekGrid";
 import { ConflictPanel } from "@/components/conflicts/ConflictPanel";
 import { CreneauFormModal } from "@/components/planning/CreneauFormModal";
@@ -15,6 +15,8 @@ export default function PlanningScolaritePage() {
   const [creneaux, setCreneaux] = useState<Creneau[]>(MOCK_CRENEAUX_SCOLARITE);
   const [enseignants, setEnseignants] = useState<Enseignant[] | null>(null);
   const [salles, setSalles] = useState<Salle[] | null>(null);
+  const [groupes, setGroupes] = useState<Groupe[] | null>(null);
+  const [unitesEnseignement, setUnitesEnseignement] = useState<UniteEnseignement[] | null>(null);
   const [auteur, setAuteur] = useState("Scolarité");
   const [modal, setModal] = useState<EtatModal>(null);
   const [confirmation, setConfirmation] = useState<string | null>(null);
@@ -26,13 +28,20 @@ export default function PlanningScolaritePage() {
     fetch("/api/salles")
       .then((r) => r.json())
       .then((data) => setSalles(data.salles));
+    fetch("/api/groupes")
+      .then((r) => r.json())
+      .then((data) => setGroupes(data.groupes));
+    fetch("/api/cours")
+      .then((r) => r.json())
+      .then((data) => setUnitesEnseignement(data.cours));
     fetch("/api/auth/me")
       .then((r) => r.json())
       .then((data) => data.nom && setAuteur(`${data.prenom} ${data.nom}`));
   }, []);
 
   const conflits = useMemo(() => detecterConflits(creneaux), [creneaux]);
-  const donneesPretes = enseignants !== null && salles !== null;
+  const donneesPretes =
+    enseignants !== null && salles !== null && groupes !== null && unitesEnseignement !== null;
 
   function ouvrirEdition(creneauId: string) {
     if (!donneesPretes) return;
@@ -126,19 +135,20 @@ export default function PlanningScolaritePage() {
         </div>
       </div>
 
-      {modal && enseignants && salles ? (
+      {modal && enseignants && salles && groupes && unitesEnseignement ? (
         <CreneauFormModal
           creneau={modal.mode === "edition" ? modal.creneau : null}
           creneauxExistants={
             modal.mode === "edition" ? creneaux.filter((c) => c.id !== modal.creneau.id) : creneaux
           }
           enseignants={enseignants}
-          groupes={MOCK_GROUPES}
+          groupes={groupes}
           salles={salles}
-          unitesEnseignement={MOCK_UNITES_ENSEIGNEMENT}
+          unitesEnseignement={unitesEnseignement}
           onClose={() => setModal(null)}
           onSave={handleSave}
           onEnseignantCree={(e) => setEnseignants((prev) => [...(prev ?? []), e])}
+          onUeCree={(ue) => setUnitesEnseignement((prev) => [...(prev ?? []), ue])}
         />
       ) : null}
     </div>
