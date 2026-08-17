@@ -118,19 +118,24 @@ export default function PlanningScolaritePage() {
         </p>
       ) : null}
 
-      {/* Sur mobile, les alertes passent avant la grille (order-1/order-2) :
-          la grille seule peut être longue, on ne veut pas que les conflits
-          passent inaperçus tout en bas. À partir de lg, on revient à la
-          disposition grille + panneau latéral. */}
-      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-        <div className="order-2 lg:order-1">
+      {/* En dessous de xl (~1280px, la largeur d'un laptop d'entrée de gamme
+          courant), le panneau "Alertes de Conflit" (320px fixes) passe sous
+          la grille plutôt qu'à côté : le laisser à côté forçait la grille à
+          défiler horizontalement dès ~1366px d'écran pour montrer
+          Jeudi-Samedi, sans aucun indice visuel qu'il fallait la faire
+          défiler — au point qu'on croyait certains jours "non enregistrés"
+          alors qu'ils étaient juste hors champ. Sur mobile, les alertes
+          passent même avant la grille (order-1/order-2), pour ne pas être
+          manquées sous une grille potentiellement longue. */}
+      <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
+        <div className="order-2 xl:order-1">
           <ScheduleWeekGrid
             creneaux={creneaux}
             renderMeta={(c) => `${c.salle.nom} · ${c.groupe.nom} · ${c.enseignant.prenom} ${c.enseignant.nom}`}
             onCreneauClick={(c) => ouvrirEdition(c.id)}
           />
         </div>
-        <div className="order-1 lg:order-2">
+        <div className="order-1 xl:order-2">
           <ConflictPanel conflits={conflits} onCorriger={ouvrirEdition} />
         </div>
       </div>

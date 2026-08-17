@@ -138,10 +138,15 @@ export function ScheduleWeekGrid({
       </div>
 
       <div className="overflow-x-auto">
+        {/* minmax(96px, 1fr) plutôt qu'un min-w fixe sur tout le conteneur :
+            chaque jour ne descend jamais sous une largeur lisible, mais le
+            défilement horizontal ne se déclenche que si l'écran est
+            vraiment trop étroit pour ça (~630px), pas dès qu'il est
+            simplement plus petit qu'un chiffre choisi au hasard. */}
         <div
-          className="grid min-w-[760px]"
+          className="grid w-full"
           style={{
-            gridTemplateColumns: `56px repeat(${JOURS.length}, 1fr)`,
+            gridTemplateColumns: `56px repeat(${JOURS.length}, minmax(96px, 1fr))`,
             gridTemplateRows: `auto repeat(${NB_QUARTS}, ${HAUTEUR_QUART}px)`,
           }}
         >
