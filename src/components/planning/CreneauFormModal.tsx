@@ -84,6 +84,16 @@ export function CreneauFormModal({
   const salleChoisie = salles.find((s) => s.id === salleId);
   const optionsHeureFin = OPTIONS_HEURE.filter((h) => h > heureDebut);
 
+  // Rien n'empêche techniquement un créneau de durer 10h (RM-01 ne borne pas
+  // la durée), mais dans la pratique un séminaire de 4h est déjà long — une
+  // saisie plus longue est presque toujours une erreur d'horaire plutôt
+  // qu'un vrai cours. Avertissement non bloquant, pas une interdiction.
+  const dureeHeures =
+    heureFin > heureDebut
+      ? Number(heureFin.slice(0, 2)) - Number(heureDebut.slice(0, 2))
+      : 0;
+  const dureeInhabituelle = dureeHeures > 4;
+
   function toggleJour(jour: Creneau["jour"]) {
     if (!modeEdition) {
       setJours((prev) => {
@@ -414,6 +424,13 @@ export function CreneauFormModal({
               </select>
             </div>
           </div>
+          {dureeInhabituelle ? (
+            <p className="-mt-2 rounded-lg bg-status-warning-bg px-3 py-2 text-xs text-status-warning">
+              Ce créneau dure {dureeHeures}h — vérifiez qu&apos;il ne s&apos;agit pas d&apos;une erreur de
+              saisie (la plupart des cours durent 1 à 3h). Un cours qui revient plusieurs fois par
+              semaine se règle avec les jours cochés ci-dessus, pas avec une plage horaire plus longue.
+            </p>
+          ) : null}
 
           {/* Motif (édition/annulation) */}
           {modeEdition ? (
