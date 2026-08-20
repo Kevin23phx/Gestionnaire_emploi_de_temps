@@ -9,19 +9,11 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const { nom, filiere, niveau, effectif } = await request.json();
+  const { nom, filiere, niveau } = await request.json();
 
   if (!nom?.trim() || !filiere?.trim() || !niveau?.trim()) {
     return NextResponse.json(
       { erreur: "Le nom, la filière et le niveau sont obligatoires." },
-      { status: 400 }
-    );
-  }
-
-  const effectifNum = Number(effectif);
-  if (!Number.isInteger(effectifNum) || effectifNum <= 0) {
-    return NextResponse.json(
-      { erreur: "L'effectif doit être un nombre entier positif." },
       { status: 400 }
     );
   }
@@ -31,12 +23,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ erreur: "Un groupe porte déjà ce nom." }, { status: 409 });
   }
 
+  // "effectif" démarre à 0 : jamais saisi à la main, seulement dérivé du
+  // rattachement d'étudiants (cf. Groupe.effectif dans types.ts et
+  // GroupeEtudiantsModal, ouvert automatiquement juste après la création).
   const groupe = {
     id: `g-${crypto.randomUUID().slice(0, 8)}`,
     nom: nom.trim(),
     filiere: filiere.trim(),
     niveau: niveau.trim(),
-    effectif: effectifNum,
+    effectif: 0,
   };
   MOCK_GROUPES.push(groupe);
 

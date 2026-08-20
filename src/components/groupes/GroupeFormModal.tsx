@@ -4,9 +4,12 @@ import { useState } from "react";
 import { X } from "lucide-react";
 import type { Groupe } from "@/lib/types";
 
-// FR-REF-01 : référentiel des groupes/filières — mêmes attributs que ceux
-// attendus par le moteur de conflits (effectif, comparé à la capacité de
-// salle, FR-CONF-04).
+// FR-REF-01 : référentiel des groupes/filières. Pas de champ "Effectif" ici
+// — un groupe naît vide (0 étudiant) et se peuple ensuite via
+// GroupeEtudiantsModal (import ou affectation), jamais par une estimation
+// tapée à la création (retour utilisateur du 2026-08-18 : ce nombre doit
+// refléter les étudiants réellement rattachés, cf. Groupe.effectif dans
+// types.ts).
 export function GroupeFormModal({
   onClose,
   onSave,
@@ -17,18 +20,21 @@ export function GroupeFormModal({
   const [nom, setNom] = useState("");
   const [filiere, setFiliere] = useState("");
   const [niveau, setNiveau] = useState("");
-  const [effectif, setEffectif] = useState("");
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, setEnCours] = useState(false);
 
   async function handleSubmit() {
+    if (!nom.trim() || !filiere.trim() || !niveau.trim()) {
+      setErreur("Le nom, la filière et le niveau sont obligatoires.");
+      return;
+    }
     setErreur(null);
     setEnCours(true);
 
     const reponse = await fetch("/api/groupes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nom, filiere, niveau, effectif }),
+      body: JSON.stringify({ nom, filiere, niveau }),
     });
     const data = await reponse.json();
     setEnCours(false);
@@ -40,9 +46,6 @@ export function GroupeFormModal({
 
     onSave(data.groupe);
   }
-
-  const peutEnregistrer =
-    nom.trim() && filiere.trim() && niveau.trim() && Number(effectif) > 0 && !enCours;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
@@ -88,18 +91,6 @@ export function GroupeFormModal({
             />
           </div>
 
-          <div>
-            <label className="text-sm font-medium text-text">Effectif</label>
-            <input
-              type="number"
-              min={1}
-              value={effectif}
-              onChange={(e) => setEffectif(e.target.value)}
-              placeholder="ex: 50"
-              className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
-            />
-          </div>
-
           {erreur ? (
             <p className="rounded-lg bg-status-danger-bg px-3 py-2 text-sm text-status-danger">{erreur}</p>
           ) : null}
@@ -113,7 +104,7 @@ export function GroupeFormModal({
             </button>
             <button
               onClick={handleSubmit}
-              disabled={!peutEnregistrer}
+              disabled={enCours}
               className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
             >
               {enCours ? "Création..." : "Créer le groupe"}

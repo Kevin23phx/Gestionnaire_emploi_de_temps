@@ -24,7 +24,22 @@ export interface Groupe {
   nom: string; // ex. "L3 INFO - Groupe A"
   filiere: string;
   niveau: string;
-  effectif: number;
+  effectif: number; // dérivé du nombre d'Etudiant.groupeId === ce groupe (cf. Etudiant) — jamais saisi à la main une fois des étudiants rattachés
+}
+
+// Référentiel des étudiants — distinct de Utilisateur (qui ne porte que le
+// compte de connexion) pour la même raison qu'Enseignant en est distinct :
+// la scolarité doit pouvoir importer/rattacher un étudiant à un groupe avant
+// même que son compte existe. "groupeId" absent = étudiant connu du
+// référentiel mais pas encore affecté à un groupe (ex. juste importé).
+export interface Etudiant {
+  id: string;
+  ine: string; // Identifiant National de l'Étudiant — pas un "matricule" (retour utilisateur du 2026-08-18)
+  nom: string;
+  prenom: string;
+  filiere: string;
+  niveau: string;
+  groupeId?: string;
 }
 
 export interface Enseignant {

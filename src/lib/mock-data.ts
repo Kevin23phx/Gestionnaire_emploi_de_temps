@@ -9,6 +9,7 @@ import type {
   DashboardStats,
   DemandeEnseignant,
   Enseignant,
+  Etudiant,
   Groupe,
   NotificationItem,
   Salle,
@@ -52,9 +53,13 @@ export const MOCK_UTILISATEURS: (Utilisateur & { motDePasse: string; identifiant
   },
 ];
 
+// "effectif" est calculé ci-dessous à partir de MOCK_ETUDIANTS, jamais saisi
+// à la main — cf. commentaire sur Groupe.effectif dans types.ts. Les 0
+// initiaux ne sont qu'un point de départ, corrigés juste après la
+// définition de MOCK_ETUDIANTS.
 export const MOCK_GROUPES: Groupe[] = [
-  { id: "g-l3-info-a", nom: "L3 INFO - Groupe A", filiere: "Informatique", niveau: "L3", effectif: 65 },
-  { id: "g-l2-info-td1", nom: "L2 INFO - TD 1", filiere: "Informatique", niveau: "L2", effectif: 45 },
+  { id: "g-l3-info-a", nom: "L3 INFO - Groupe A", filiere: "Informatique", niveau: "L3", effectif: 0 },
+  { id: "g-l2-info-td1", nom: "L2 INFO - TD 1", filiere: "Informatique", niveau: "L2", effectif: 0 },
 ];
 
 export const MOCK_ENSEIGNANTS: Enseignant[] = [
@@ -62,6 +67,56 @@ export const MOCK_ENSEIGNANTS: Enseignant[] = [
   { id: "e-traore", nom: "Traoré", prenom: "Moussa" },
   { id: "e-sawadogo", nom: "Sawadogo", prenom: "Boukary" },
 ];
+
+// Référentiel des étudiants (FR-REF-01) — représente ce qu'un import
+// campus-wide apporterait : la majorité déjà rattachée à un groupe, mais
+// aussi un petit lot fraîchement importé et pas encore trié (groupeId
+// absent) — cas réel à chaque rentrée, avant que la scolarité ait fini de
+// répartir la nouvelle promotion en groupes.
+export const MOCK_ETUDIANTS: Etudiant[] = [
+  // L3 INFO - Groupe A — "20230145" correspond au compte de démo étudiant
+  // (MOCK_UTILISATEURS ci-dessus), pour que la connexion et le référentiel
+  // scolarité racontent la même histoire.
+  { id: "et-1", ine: "20230145", nom: "Ouédraogo", prenom: "Aïcha", filiere: "Informatique", niveau: "L3", groupeId: "g-l3-info-a" },
+  { id: "et-2", ine: "20230101", nom: "Kaboré", prenom: "Awa", filiere: "Informatique", niveau: "L3", groupeId: "g-l3-info-a" },
+  { id: "et-3", ine: "20230102", nom: "Zongo", prenom: "Issa", filiere: "Informatique", niveau: "L3", groupeId: "g-l3-info-a" },
+  { id: "et-4", ine: "20230103", nom: "Compaoré", prenom: "Fatoumata", filiere: "Informatique", niveau: "L3", groupeId: "g-l3-info-a" },
+  { id: "et-5", ine: "20230104", nom: "Ouattara", prenom: "Boureima", filiere: "Informatique", niveau: "L3", groupeId: "g-l3-info-a" },
+  { id: "et-6", ine: "20230105", nom: "Nikiéma", prenom: "Salamata", filiere: "Informatique", niveau: "L3", groupeId: "g-l3-info-a" },
+  { id: "et-7", ine: "20230106", nom: "Bamogo", prenom: "Yacouba", filiere: "Informatique", niveau: "L3", groupeId: "g-l3-info-a" },
+  { id: "et-8", ine: "20230107", nom: "Ilboudo", prenom: "Nathalie", filiere: "Informatique", niveau: "L3", groupeId: "g-l3-info-a" },
+
+  // L2 INFO - TD 1
+  { id: "et-9", ine: "20240201", nom: "Sanou", prenom: "Abdoulaye", filiere: "Informatique", niveau: "L2", groupeId: "g-l2-info-td1" },
+  { id: "et-10", ine: "20240202", nom: "Congo", prenom: "Aminata", filiere: "Informatique", niveau: "L2", groupeId: "g-l2-info-td1" },
+  { id: "et-11", ine: "20240203", nom: "Kagambega", prenom: "Rasmané", filiere: "Informatique", niveau: "L2", groupeId: "g-l2-info-td1" },
+  { id: "et-12", ine: "20240204", nom: "Tapsoba", prenom: "Mariam", filiere: "Informatique", niveau: "L2", groupeId: "g-l2-info-td1" },
+  { id: "et-13", ine: "20240205", nom: "Ky", prenom: "Adama", filiere: "Informatique", niveau: "L2", groupeId: "g-l2-info-td1" },
+  { id: "et-14", ine: "20240206", nom: "Kologo", prenom: "Hawa", filiere: "Informatique", niveau: "L2", groupeId: "g-l2-info-td1" },
+
+  // Fraîchement importés, pas encore affectés à un groupe.
+  { id: "et-15", ine: "20250301", nom: "Ouédraogo", prenom: "Boukary", filiere: "Électricité", niveau: "L1" },
+  { id: "et-16", ine: "20250302", nom: "Sawadogo", prenom: "Aïda", filiere: "Électricité", niveau: "L1" },
+  { id: "et-17", ine: "20250303", nom: "Traoré", prenom: "Inoussa", filiere: "Électricité", niveau: "L1" },
+  { id: "et-18", ine: "20250304", nom: "Kaboré", prenom: "Ramata", filiere: "Électricité", niveau: "L1" },
+];
+
+// Mutation en place (pas de remplacement d'entrée dans MOCK_GROUPES) : les
+// créneaux du seed (MOCK_CRENEAUX_SCOLARITE) embarquent une référence directe
+// vers ces mêmes objets Groupe (cf. "groupe: MOCK_GROUPES[0]" plus bas), donc
+// muter le champ ici suffit à ce qu'ils restent synchronisés eux aussi, sans
+// code supplémentaire — uniquement pour les créneaux jamais réenregistrés
+// depuis (un POST /api/creneaux reçoit un objet Groupe déjà sérialisé par le
+// fetch initial, qui rompt ce partage de référence).
+export function recalculerEffectif(groupeId: string) {
+  const groupe = MOCK_GROUPES.find((g) => g.id === groupeId);
+  if (!groupe) return;
+  groupe.effectif = MOCK_ETUDIANTS.filter((e) => e.groupeId === groupeId).length;
+}
+
+for (const groupe of MOCK_GROUPES) {
+  recalculerEffectif(groupe.id);
+}
 
 export const MOCK_SALLES: Salle[] = [
   { id: "s-amphi-a", nom: "Amphi A", batiment: "Amphis Centraux", capacite: 1000, structureGestionnaire: "UFR_PILOTE", typeUsage: "commune" },

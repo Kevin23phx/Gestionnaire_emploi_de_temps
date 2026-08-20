@@ -1,13 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Users } from "lucide-react";
 import type { Groupe } from "@/lib/types";
 import { GroupeFormModal } from "@/components/groupes/GroupeFormModal";
+import { GroupeEtudiantsModal } from "@/components/groupes/GroupeEtudiantsModal";
 
 export default function GroupesPage() {
   const [groupes, setGroupes] = useState<Groupe[] | null>(null);
   const [modalOuvert, setModalOuvert] = useState(false);
+  const [groupeEtudiants, setGroupeEtudiants] = useState<Groupe | null>(null);
+
+  function majEffectif(groupeId: string, nouvelEffectif: number) {
+    setGroupes((prev) =>
+      (prev ?? []).map((g) => (g.id === groupeId ? { ...g, effectif: nouvelEffectif } : g))
+    );
+    setGroupeEtudiants((prev) => (prev && prev.id === groupeId ? { ...prev, effectif: nouvelEffectif } : prev));
+  }
 
   useEffect(() => {
     fetch("/api/groupes")
@@ -43,6 +52,7 @@ export default function GroupesPage() {
               <th className="px-4 py-2 font-medium">Filière</th>
               <th className="px-4 py-2 font-medium">Niveau</th>
               <th className="px-4 py-2 font-medium">Effectif</th>
+              <th className="px-4 py-2 font-medium"></th>
             </tr>
           </thead>
           <tbody>
@@ -52,6 +62,15 @@ export default function GroupesPage() {
                 <td className="px-4 py-2 text-text-muted">{groupe.filiere}</td>
                 <td className="px-4 py-2 text-text-muted">{groupe.niveau}</td>
                 <td className="px-4 py-2 text-text-muted">{groupe.effectif} étudiants</td>
+                <td className="px-4 py-2 text-right">
+                  <button
+                    onClick={() => setGroupeEtudiants(groupe)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1 text-xs font-medium text-text hover:bg-surface-muted"
+                  >
+                    <Users className="h-3.5 w-3.5" aria-hidden="true" />
+                    Étudiants
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -67,7 +86,16 @@ export default function GroupesPage() {
           onSave={(groupe) => {
             setGroupes((prev) => [...(prev ?? []), groupe]);
             setModalOuvert(false);
+            setGroupeEtudiants(groupe);
           }}
+        />
+      ) : null}
+
+      {groupeEtudiants ? (
+        <GroupeEtudiantsModal
+          groupe={groupeEtudiants}
+          onClose={() => setGroupeEtudiants(null)}
+          onEffectifChange={majEffectif}
         />
       ) : null}
     </div>
