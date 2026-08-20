@@ -1,14 +1,21 @@
+"use client";
+
+import { useState } from "react";
 import type { Creneau, StatutCreneau } from "@/lib/types";
 import { PAUSES } from "@/lib/pauses";
 
-const JOURS: { key: Creneau["jour"]; label: string }[] = [
-  { key: "lundi", label: "Lundi" },
-  { key: "mardi", label: "Mardi" },
-  { key: "mercredi", label: "Mercredi" },
-  { key: "jeudi", label: "Jeudi" },
-  { key: "vendredi", label: "Vendredi" },
-  { key: "samedi", label: "Samedi" },
+const JOURS: { key: Creneau["jour"]; label: string; court: string }[] = [
+  { key: "lundi", label: "Lundi", court: "Lun" },
+  { key: "mardi", label: "Mardi", court: "Mar" },
+  { key: "mercredi", label: "Mercredi", court: "Mer" },
+  { key: "jeudi", label: "Jeudi", court: "Jeu" },
+  { key: "vendredi", label: "Vendredi", court: "Ven" },
+  { key: "samedi", label: "Samedi", court: "Sam" },
 ];
+
+// getDay() : 0=dimanche, 1=lundi... — décalé d'un cran par rapport à JOURS
+// (qui commence au lundi, pas de cours le dimanche dans le MVP).
+const JOUR_ACTUEL = JOURS[new Date().getDay() - 1]?.key ?? "lundi";
 
 const HEURE_DEBUT = 7;
 const HEURE_FIN = 18;
@@ -45,6 +52,20 @@ function heureVersLigne(heure: string): number {
   return heureVersQuart(heure) + 2; // +2 : ligne 1 = en-tête des jours
 }
 
+// `renderMeta` était une fonction passée en prop, mais ScheduleWeekGrid est
+// maintenant un Client Component (useState pour l'onglet jour de l'agenda
+// mobile) : une fonction ne peut pas traverser la frontière Server → Client
+// Component quand l'appelant (etudiant/page.tsx, enseignant/page.tsx) est un
+// Server Component. Une variante sérialisable (chaîne) suffit, vu qu'il n'y
+// avait que deux formats réels dans toute l'appli.
+type VarianteMeta = "salle-enseignant" | "salle-groupe";
+
+function formaterMeta(creneau: Creneau, variante: VarianteMeta): string {
+  return variante === "salle-enseignant"
+    ? `${creneau.salle.nom} · ${creneau.enseignant.prenom} ${creneau.enseignant.nom}`
+    : `${creneau.salle.nom} · ${creneau.groupe.nom}`;
+}
+
 function chevauchentHoraire(a: Creneau, b: Creneau): boolean {
   return a.heureDebut < b.heureFin && b.heureDebut < a.heureFin;
 }
@@ -74,11 +95,11 @@ function grouperChevauchements(creneauxJour: Creneau[]): Creneau[][] {
 
 function CarteCreneau({
   creneau,
-  renderMeta,
+  variante,
   onCreneauClick,
 }: {
   creneau: Creneau;
-  renderMeta: (creneau: Creneau) => string;
+  variante: VarianteMeta;
   onCreneauClick?: (creneau: Creneau) => void;
 }) {
   return (
@@ -99,8 +120,8 @@ function CarteCreneau({
       <p className="text-xs font-medium text-text-muted">
         {creneau.heureDebut}–{creneau.heureFin}
       </p>
-      <p className="truncate text-xs text-text-muted" title={renderMeta(creneau)}>
-        {renderMeta(creneau)}
+      <p className="truncate text-xs text-text-muted" title={formaterMeta(creneau, variante)}>
+        {formaterMeta(creneau, variante)}
       </p>
       {creneau.motif ? (
         <p className="truncate text-xs italic text-text-subtle" title={creneau.motif}>
@@ -111,17 +132,74 @@ function CarteCreneau({
   );
 }
 
+// Version agenda (mobile) : une carte pleine largeur par créneau, rien de
+// tronqué — c'est précisément ce que la grille ne peut pas offrir sous ~630px
+// (retour utilisateur du 2026-08-18 : sur téléphone, la grille force 6
+// colonnes de 96px chacune, donc "Algorithmique Avancée" devient "Algorith…"
+// et la salle/l'enseignant disparaissent complètement derrière un "…").
+function CarteCreneauAgenda({
+  creneau,
+  variante,
+  onCreneauClick,
+}: {
+  creneau: Creneau;
+  variante: VarianteMeta;
+  onCreneauClick?: (creneau: Creneau) => void;
+}) {
+  return (
+    <div
+      onClick={onCreneauClick ? () => onCreneauClick(creneau) : undefined}
+      className={`flex flex-col gap-1 rounded-lg p-3 shadow-sm ${CARTE_CLASSES[creneau.statut]} ${
+        onCreneauClick ? "cursor-pointer active:brightness-95" : ""
+      }`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-semibold text-text-muted">
+          {creneau.heureDebut}–{creneau.heureFin}
+        </p>
+        {creneau.statut !== "normal" ? (
+          <span className="rounded-full bg-surface px-2 py-0.5 text-[11px] font-medium text-text-muted">
+            {creneau.statut === "modifie" ? "Modifié" : "Annulé"}
+          </span>
+        ) : null}
+      </div>
+      <p
+        className={`text-base font-semibold leading-tight text-text ${
+          creneau.statut === "annule" ? "line-through opacity-70" : ""
+        }`}
+      >
+        {creneau.ue.intitule}
+      </p>
+      <p className="text-sm text-text-muted">{formaterMeta(creneau, variante)}</p>
+      {creneau.motif ? <p className="text-sm italic text-text-subtle">Motif : {creneau.motif}</p> : null}
+    </div>
+  );
+}
+
 // Affiche l'emploi du temps hebdomadaire — même composant pour les vues étudiant,
-// enseignant et scolarité (seul le contenu des cartes de créneau varie via `renderMeta`).
+// enseignant et scolarité (seul le contenu des cartes de créneau varie via `variante`).
+//
+// Deux présentations selon la largeur d'écran (retour utilisateur du
+// 2026-08-18, cf. cahier des charges §1.4 : la majorité des utilisateurs
+// consultent Campus Manager depuis un smartphone) :
+// - < md : agenda d'un seul jour à la fois, sélecteur de jour, cartes pleine
+//   largeur — rien de tronqué.
+// - ≥ md : grille des 6 jours, assez de place pour rester lisible.
 export function ScheduleWeekGrid({
   creneaux,
-  renderMeta,
+  variante,
   onCreneauClick,
 }: {
   creneaux: Creneau[];
-  renderMeta: (creneau: Creneau) => string;
+  variante: VarianteMeta;
   onCreneauClick?: (creneau: Creneau) => void;
 }) {
+  const [jourAgenda, setJourAgenda] = useState<Creneau["jour"]>(JOUR_ACTUEL);
+  const creneauxAgenda = creneaux
+    .filter((c) => c.jour === jourAgenda)
+    .sort((a, b) => (a.heureDebut < b.heureDebut ? -1 : 1));
+  const joursAvecCours = new Set(creneaux.map((c) => c.jour));
+
   return (
     <div className="rounded-xl border border-border bg-surface">
       <div className="flex flex-wrap items-center gap-4 border-b border-border px-4 py-2.5">
@@ -137,7 +215,47 @@ export function ScheduleWeekGrid({
         </div>
       </div>
 
-      <div className="overflow-x-auto">
+      {/* Agenda mobile */}
+      <div className="md:hidden">
+        <div className="flex gap-1.5 overflow-x-auto border-b border-border px-3 py-2">
+          {JOURS.map((jour) => (
+            <button
+              key={jour.key}
+              onClick={() => setJourAgenda(jour.key)}
+              className={`relative shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium ${
+                jourAgenda === jour.key
+                  ? "bg-brand text-white"
+                  : "bg-surface-muted text-text-muted hover:text-text"
+              }`}
+            >
+              {jour.court}
+              {joursAvecCours.has(jour.key) && jourAgenda !== jour.key ? (
+                <span
+                  className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-brand"
+                  aria-hidden="true"
+                />
+              ) : null}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-col gap-2 p-3">
+          {creneauxAgenda.length === 0 ? (
+            <p className="py-6 text-center text-sm text-text-muted">Aucun cours ce jour-là.</p>
+          ) : (
+            creneauxAgenda.map((creneau) => (
+              <CarteCreneauAgenda
+                key={creneau.id}
+                creneau={creneau}
+                variante={variante}
+                onCreneauClick={onCreneauClick}
+              />
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Grille semaine (tablette / bureau) */}
+      <div className="hidden overflow-x-auto md:block">
         {/* minmax(96px, 1fr) plutôt qu'un min-w fixe sur tout le conteneur :
             chaque jour ne descend jamais sous une largeur lisible, mais le
             défilement horizontal ne se déclenche que si l'écran est
@@ -231,7 +349,7 @@ export function ScheduleWeekGrid({
                     <CarteCreneau
                       key={creneau.id}
                       creneau={creneau}
-                      renderMeta={renderMeta}
+                      variante={variante}
                       onCreneauClick={onCreneauClick}
                     />
                   ))}

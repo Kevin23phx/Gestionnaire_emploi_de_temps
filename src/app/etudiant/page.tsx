@@ -34,7 +34,7 @@ export default async function EtudiantPage() {
 
       <ScheduleWeekGrid
         creneaux={creneaux}
-        renderMeta={(c) => `${c.salle.nom} · ${c.enseignant.prenom} ${c.enseignant.nom}`}
+        variante="salle-enseignant"
       />
     </div>
   );

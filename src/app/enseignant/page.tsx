@@ -29,7 +29,7 @@ export default async function EnseignantPage() {
 
       <ScheduleWeekGrid
         creneaux={creneaux}
-        renderMeta={(c) => `${c.salle.nom} · ${c.groupe.nom}`}
+        variante="salle-groupe"
       />
     </div>
   );
