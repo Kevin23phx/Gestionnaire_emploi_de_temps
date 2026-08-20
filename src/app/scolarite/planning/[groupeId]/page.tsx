@@ -91,6 +91,17 @@ export default function ProgrammeGroupePage() {
     }).catch(() => {});
   }
 
+  function appliquerResultats(resultats: Creneau[]) {
+    setCreneaux((prev) => {
+      let suivant = prev ?? [];
+      for (const creneau of resultats) {
+        const existant = suivant.some((c) => c.id === creneau.id);
+        suivant = existant ? suivant.map((c) => (c.id === creneau.id ? creneau : c)) : [...suivant, creneau];
+      }
+      return suivant;
+    });
+  }
+
   async function handleSave(resultats: Creneau[], motifDerogation: string | null) {
     for (const resultat of resultats) {
       const existant = (creneaux ?? []).some((c) => c.id === resultat.id);
@@ -107,15 +118,7 @@ export default function ProgrammeGroupePage() {
       body: JSON.stringify({ creneaux: resultats }),
     });
     const data = await reponse.json();
-
-    setCreneaux((prev) => {
-      let suivant = prev ?? [];
-      for (const creneau of data.creneaux as Creneau[]) {
-        const existant = suivant.some((c) => c.id === creneau.id);
-        suivant = existant ? suivant.map((c) => (c.id === creneau.id ? creneau : c)) : [...suivant, creneau];
-      }
-      return suivant;
-    });
+    appliquerResultats(data.creneaux as Creneau[]);
 
     const pluriel = resultats.length > 1 ? `${resultats.length} créneaux enregistrés` : "Créneau enregistré";
     setConfirmation(
@@ -124,6 +127,31 @@ export default function ProgrammeGroupePage() {
         : `${pluriel}.`
     );
     setModal(null);
+    setTimeout(() => setConfirmation(null), 5000);
+  }
+
+  // Correction groupée depuis le panneau d'alertes (§ConflictPanel) : les
+  // séances viennent déjà avec leur nouvelle salle assignée, il ne reste
+  // qu'à journaliser et enregistrer en un seul lot — pas de modal à ouvrir.
+  async function handleCorrectionMasse(creneauxModifies: Creneau[], motif: string) {
+    for (const resultat of creneauxModifies) {
+      journaliser(
+        `Correction groupée créneau — ${resultat.ue.intitule} (${resultat.jour} ${resultat.heureDebut}-${resultat.heureFin}) — ${groupeActuel?.nom ?? ""}`,
+        motif
+      );
+    }
+
+    const reponse = await fetch("/api/creneaux", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ creneaux: creneauxModifies }),
+    });
+    const data = await reponse.json();
+    appliquerResultats(data.creneaux as Creneau[]);
+
+    setConfirmation(
+      `${creneauxModifies.length} créneaux corrigés en une seule action — motif : "${motif}".`
+    );
     setTimeout(() => setConfirmation(null), 5000);
   }
 
@@ -177,12 +205,18 @@ export default function ProgrammeGroupePage() {
         <div className="order-2 xl:order-1">
           <ScheduleWeekGrid
             creneaux={creneauxDuGroupe}
-            renderMeta={(c) => `${c.salle.nom} · ${c.enseignant.prenom} ${c.enseignant.nom}`}
+            variante="salle-enseignant"
             onCreneauClick={(c) => ouvrirEdition(c.id)}
           />
         </div>
-        <div className="order-1 xl:order-2">
-          <ConflictPanel conflits={conflits} onCorriger={ouvrirEdition} />
+        <div className="order-1 self-start xl:sticky xl:top-6 xl:order-2">
+          <ConflictPanel
+            conflits={conflits}
+            creneaux={creneaux ?? []}
+            salles={salles ?? []}
+            onCorriger={ouvrirEdition}
+            onCorrigerEnMasse={handleCorrectionMasse}
+          />
         </div>
       </div>
 
