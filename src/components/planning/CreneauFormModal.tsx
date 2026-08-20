@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { X } from "lucide-react";
+import { Search, X } from "lucide-react";
 import type {
   Creneau,
   Enseignant,
@@ -11,6 +11,7 @@ import type {
 } from "@/lib/types";
 import { detecterConflits } from "@/lib/conflict-detection";
 import { decouperSelonPauses } from "@/lib/pauses";
+import { normaliser } from "@/lib/recherche";
 import { ConflitGraviteBadge } from "@/components/ui/StatusBadge";
 
 const JOURS: { value: Creneau["jour"]; label: string }[] = [
@@ -69,9 +70,9 @@ export function CreneauFormModal({
 
   const [ueId, setUeId] = useState(creneau?.ue.id ?? unitesEnseignement[0]?.id ?? "");
   const [ueIntituleLibre, setUeIntituleLibre] = useState("");
+  const [ueRecherche, setUeRecherche] = useState("");
   const [enseignantId, setEnseignantId] = useState(creneau?.enseignant.id ?? enseignants[0]?.id ?? "");
   const [nouvelEnseignant, setNouvelEnseignant] = useState({ nom: "", prenom: "", identifiant: "" });
-  const [groupeId, setGroupeId] = useState(creneau?.groupe.id ?? groupes[0]?.id ?? "");
   const [salleId, setSalleId] = useState(creneau?.salle.id ?? salles[0]?.id ?? "");
   const [jours, setJours] = useState<Set<Creneau["jour"]>>(new Set([creneau?.jour ?? "lundi"]));
   const [heureDebut, setHeureDebut] = useState(creneau?.heureDebut ?? "08:00");
@@ -81,9 +82,29 @@ export function CreneauFormModal({
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, setEnCours] = useState(false);
 
-  const groupeChoisi = groupes.find((g) => g.id === groupeId);
+  // Le groupe n'est jamais un choix de l'utilisateur dans ce formulaire : un
+  // "programme" est la feuille d'UN SEUL groupe (décision de cadrage
+  // 2026-08-17), donc en création c'est celui de la page courante
+  // (`groupes[0]`), et en édition c'est celui déjà porté par le créneau —
+  // qui peut différer de `groupes[0]` quand on corrige depuis une alerte de
+  // conflit inter-groupes (ex. double réservation de salle entre deux
+  // programmes différents). Chercher ce groupe dans la liste verrouillée de
+  // la page courante échouait dans ce cas (retour utilisateur du
+  // 2026-08-18) : on prend directement l'objet, jamais une recherche par id.
+  const groupeChoisi = creneau?.groupe ?? groupes[0];
   const salleChoisie = salles.find((s) => s.id === salleId);
   const optionsHeureFin = OPTIONS_HEURE.filter((h) => h > heureDebut);
+  const ueSelectionnee = ueId !== NOUVELLE_UE ? unitesEnseignement.find((u) => u.id === ueId) : undefined;
+
+  // Un UFR compte des centaines de cours : filtrer par code ou intitulé
+  // plutôt que défiler une longue liste (retour utilisateur du 2026-08-18).
+  const uesFiltrees = useMemo(() => {
+    const requete = normaliser(ueRecherche.trim());
+    if (!requete) return unitesEnseignement;
+    return unitesEnseignement.filter(
+      (u) => normaliser(u.intitule).includes(requete) || normaliser(u.code).includes(requete)
+    );
+  }, [unitesEnseignement, ueRecherche]);
 
   function toggleJour(jour: Creneau["jour"]) {
     if (!modeEdition) {
@@ -180,6 +201,32 @@ export function CreneauFormModal({
     !nouvelleUeIncomplete &&
     !enCours;
 
+  // Le bouton "Enregistrer" reste cliquable même quand une condition manque
+  // (cf. retour utilisateur du 2026-08-18 : un bouton simplement grisé, sans
+  // explication, donne l'impression que l'enregistrement est cassé). Au
+  // clic, on affiche laquelle des conditions ci-dessus bloque encore.
+  function messageBlocage(): string | null {
+    // Chaque cause possible de creneauxApercu.length === 0 est vérifiée
+    // séparément : un message générique ("sélectionnez un cours et un
+    // enseignant") laissait deviner lequel des 5 champs posait problème —
+    // souvent aucun des deux qu'il citait (retour utilisateur du 2026-08-18).
+    if (!groupeChoisi) return "Aucun groupe disponible pour ce programme.";
+    if (!salleChoisie) return "Sélectionnez une salle.";
+    if (jours.size === 0) return "Sélectionnez au moins un jour.";
+    if (ueId !== NOUVELLE_UE && !unitesEnseignement.find((u) => u.id === ueId))
+      return "Sélectionnez un cours : cliquez sur un résultat dans la liste sous le champ de recherche.";
+    if (enseignantId !== NOUVEL_ENSEIGNANT && !enseignants.find((e) => e.id === enseignantId))
+      return "Sélectionnez un enseignant.";
+    if (creneauxApercu.length === 0) return "Complétez les informations du cours avant d'enregistrer.";
+    if (heureFin <= heureDebut) return "L'heure de fin doit être après l'heure de début.";
+    if (nouvelleUeIncomplete) return "Précisez l'intitulé du nouveau cours.";
+    if (nouvelEnseignantIncomplet) return "Complétez le nom, le prénom et l'identifiant du nouvel enseignant.";
+    if (motifManquant) return "Le motif de la modification est obligatoire (champ ci-dessous).";
+    if (derogationManquante)
+      return "Un motif de dérogation est obligatoire : ce créneau est encore en conflit (champ ci-dessous).";
+    return null;
+  }
+
   async function resoudreUe(): Promise<UniteEnseignement | null> {
     if (ueId !== NOUVELLE_UE) {
       return unitesEnseignement.find((u) => u.id === ueId) ?? null;
@@ -219,7 +266,11 @@ export function CreneauFormModal({
   }
 
   async function handleEnregistrer() {
-    if (creneauxApercu.length === 0) return;
+    const blocage = messageBlocage();
+    if (blocage) {
+      setErreur(blocage);
+      return;
+    }
     setErreur(null);
     setEnCours(true);
 
@@ -272,18 +323,55 @@ export function CreneauFormModal({
           {/* UE */}
           <div>
             <label className="text-sm font-medium text-text">Unité d&apos;enseignement</label>
-            <select
-              value={ueId}
-              onChange={(e) => setUeId(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
-            >
-              {unitesEnseignement.map((ue) => (
-                <option key={ue.id} value={ue.id}>
-                  {ue.intitule}
-                </option>
-              ))}
-              <option value={NOUVELLE_UE}>+ Autre (préciser)</option>
-            </select>
+            {ueSelectionnee ? (
+              <p className="mt-1 text-xs text-text-muted">
+                Sélectionné : <span className="font-medium text-text">{ueSelectionnee.intitule}</span> (
+                {ueSelectionnee.code})
+              </p>
+            ) : null}
+            <div className="relative mt-1">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-subtle"
+                aria-hidden="true"
+              />
+              <input
+                type="text"
+                value={ueRecherche}
+                onChange={(e) => setUeRecherche(e.target.value)}
+                placeholder="Rechercher un cours par code ou intitulé..."
+                className="w-full rounded-lg border border-border py-2 pl-9 pr-3 text-sm"
+              />
+            </div>
+            <div className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-border">
+              {uesFiltrees.length === 0 ? (
+                <p className="px-3 py-2 text-sm text-text-muted">
+                  Aucun cours ne correspond à « {ueRecherche} ».
+                </p>
+              ) : (
+                uesFiltrees.map((ue) => (
+                  <button
+                    key={ue.id}
+                    type="button"
+                    onClick={() => setUeId(ue.id)}
+                    className={`flex w-full items-center justify-between gap-2 border-b border-border px-3 py-2 text-left text-sm last:border-b-0 hover:bg-surface-muted ${
+                      ueId === ue.id ? "bg-brand/10 font-medium text-brand" : "text-text"
+                    }`}
+                  >
+                    <span>{ue.intitule}</span>
+                    <span className="shrink-0 text-xs text-text-subtle">{ue.code}</span>
+                  </button>
+                ))
+              )}
+              <button
+                type="button"
+                onClick={() => setUeId(NOUVELLE_UE)}
+                className={`block w-full px-3 py-2 text-left text-sm hover:bg-surface-muted ${
+                  ueId === NOUVELLE_UE ? "bg-brand/10 font-medium text-brand" : "text-text-muted"
+                }`}
+              >
+                + Autre (préciser)
+              </button>
+            </div>
             {ueId === NOUVELLE_UE ? (
               <input
                 type="text"
@@ -341,20 +429,12 @@ export function CreneauFormModal({
             ) : null}
           </div>
 
-          {/* Groupe */}
+          {/* Groupe — jamais modifiable ici, cf. commentaire sur groupeChoisi */}
           <div>
             <label className="text-sm font-medium text-text">Groupe</label>
-            <select
-              value={groupeId}
-              onChange={(e) => setGroupeId(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
-            >
-              {groupes.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.nom} ({g.effectif} étudiants)
-                </option>
-              ))}
-            </select>
+            <p className="mt-1 w-full rounded-lg border border-border bg-surface-muted px-3 py-2 text-sm text-text">
+              {groupeChoisi ? `${groupeChoisi.nom} (${groupeChoisi.effectif} étudiants)` : "—"}
+            </p>
           </div>
 
           {/* Salle */}
@@ -496,8 +576,10 @@ export function CreneauFormModal({
               </button>
               <button
                 onClick={handleEnregistrer}
-                disabled={!peutEnregistrer}
-                className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
+                disabled={enCours}
+                className={`rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-50 ${
+                  peutEnregistrer ? "bg-brand hover:bg-brand-hover" : "bg-text-subtle hover:bg-text-muted"
+                }`}
               >
                 {enCours ? "Enregistrement..." : "Enregistrer"}
               </button>
