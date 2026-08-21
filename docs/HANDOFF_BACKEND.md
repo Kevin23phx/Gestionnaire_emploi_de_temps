@@ -231,14 +231,29 @@ indépendamment des étudiants réellement rattachés.**
 
 **UI (`GroupeEtudiantsModal`, ouverte via le bouton "Étudiants" de chaque
 ligne du tableau `/scolarite/groupes`, et automatiquement à la création d'un
-groupe) :** trois blocs — liste des membres actuels (avec retrait
-individuel), recherche + sélection multiple (avec "Tout sélectionner"/"Tout
-désélectionner") + affectation groupée des étudiants déjà connus du
-référentiel (checkbox, même pattern que la correction groupée de conflits —
-cf. section 3, pour la cohérence des interactions dans toute l'appli), et un
-import en collant du texte (`INE, nom, prénom`, une ligne par étudiant,
-séparateur virgule ou tabulation — accepte un copier-coller direct depuis un
-tableur).
+groupe) :** deux blocs — liste des membres actuels (avec retrait individuel),
+et import d'une liste. **Révisé le 2026-08-21** : la version initiale avait
+un troisième bloc (recherche + sélection multiple des étudiants "déjà
+connus" du référentiel) — retiré à la demande de l'utilisateur ("je ne vois
+pas l'intérêt de mettre une liste des gens déjà dans un [autre] groupe") :
+en pratique, la scolarité part toujours d'une liste officielle (fichier de
+promotion), pas d'une recherche étudiant par étudiant. La route
+`POST /api/etudiants/affecter` reste utilisée (par "Retirer"), seule son
+utilisation en sélection groupée depuis l'UI a disparu.
+
+**Import** : dépose de fichier (`.xlsx`, `.csv`, `.md`, `.txt`) ou texte
+collé, avec ou sans ligne d'en-tête, tableau Markdown (`| INE | Nom | Prénom |`)
+ou séparateur virgule/tabulation/point-virgule accepté indifféremment — la
+colonne INE reconnaît aussi l'en-tête "Matricule" par compatibilité. Le
+fichier `.xlsx` est lu **côté client** avec `exceljs`
+(import dynamique — chargé seulement au moment du dépôt d'un fichier, pas au
+chargement de la page) et converti dans le même format texte que
+l'import collé, avant d'appeler `POST /api/etudiants`. **Note dépendance** :
+`exceljs` a été choisi plutôt que `xlsx` (SheetJS) — la version publiée sur
+le registre npm public de `xlsx` a deux vulnérabilités hautes sans correctif
+disponible (Prototype Pollution, ReDoS) ; vérifié avec `npm audit` avant de
+choisir `exceljs`, qui n'en a aucune à ce jour. À revérifier périodiquement
+si vous gardez cette dépendance côté frontend.
 
 **Pour le backend :**
 - Les deux routes ci-dessus sont le contrat à reproduire côté
@@ -253,6 +268,9 @@ tableur).
   alignés à la main pour la démo, mais rien ne les synchronise en code. À la
   vraie API, il faudra probablement une relation explicite (`Utilisateur.
   etudiantId`, sur le même modèle que `Utilisateur.enseignantId`).
+- Si un jour l'analyse de fichier Excel doit se faire côté serveur plutôt que
+  client (fichiers volumineux, validation plus stricte avant import), la même
+  réserve sur `xlsx`/SheetJS s'applique côté Node.
 
 ---
 
