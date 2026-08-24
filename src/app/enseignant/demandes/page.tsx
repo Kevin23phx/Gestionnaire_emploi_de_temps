@@ -1,12 +1,27 @@
-import { getSession } from "@/lib/session";
-import { MOCK_CRENEAUX, MOCK_DEMANDES } from "@/lib/mock-data";
+import { apiFetchServer } from "@/lib/api-server";
+import type { Creneau, DemandeEnseignant } from "@/lib/types";
 import { DemandeStatusBadge } from "@/components/ui/StatusBadge";
 import { NouvelleDemandeForm } from "@/components/demandes/NouvelleDemandeForm";
 
 export default async function MesDemandesPage() {
-  const session = await getSession();
-  const creneaux = MOCK_CRENEAUX.filter((c) => c.enseignant.id === session?.enseignantId);
-  const demandes = MOCK_DEMANDES.filter((d) => d.enseignant.id === session?.enseignantId);
+  // Le périmètre (un enseignant ne voit que son propre planning/ses propres
+  // demandes) est déjà appliqué côté backend (INT-06). /creneaux/pour-permutation
+  // est l'exception volontaire : programme complet de l'UFR, nécessaire pour
+  // choisir le créneau d'un AUTRE enseignant au moment d'une permutation.
+  const [reponseCreneaux, reponseDemandes, reponseProgrammeComplet] = await Promise.all([
+    apiFetchServer("/creneaux"),
+    apiFetchServer("/demandes"),
+    apiFetchServer("/creneaux/pour-permutation"),
+  ]);
+  const { creneaux }: { creneaux: Creneau[] } = reponseCreneaux.ok
+    ? await reponseCreneaux.json()
+    : { creneaux: [] };
+  const { demandes }: { demandes: DemandeEnseignant[] } = reponseDemandes.ok
+    ? await reponseDemandes.json()
+    : { demandes: [] };
+  const { creneaux: programmeComplet }: { creneaux: Creneau[] } = reponseProgrammeComplet.ok
+    ? await reponseProgrammeComplet.json()
+    : { creneaux: [] };
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
@@ -17,7 +32,7 @@ export default async function MesDemandesPage() {
             <p className="text-sm text-text-muted">Aucune demande en cours.</p>
           ) : (
             demandes.map((demande) => {
-              const creneau = MOCK_CRENEAUX.find((c) => c.id === demande.creneauConcerne);
+              const creneau = creneaux.find((c) => c.id === demande.creneauConcerneId);
               return (
                 <div key={demande.id} className="rounded-xl border border-border bg-surface p-4">
                   <div className="flex items-center justify-between">
@@ -39,7 +54,7 @@ export default async function MesDemandesPage() {
 
       <div>
         <h2 className="mb-4 text-lg font-semibold text-text">Nouvelle demande</h2>
-        <NouvelleDemandeForm creneaux={creneaux} />
+        <NouvelleDemandeForm creneaux={creneaux} programmeComplet={programmeComplet} />
       </div>
     </div>
   );

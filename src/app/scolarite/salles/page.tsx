@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import type { Salle, StructureGestionnaire, TypeUsageSalle } from "@/lib/types";
 import { SalleFormModal } from "@/components/salles/SalleFormModal";
+import { apiFetch } from "@/lib/api";
 
 const USAGE_LABEL: Record<TypeUsageSalle, string> = {
   propre: "Propre à l'UFR",
@@ -24,7 +25,7 @@ export default function SallesPage() {
   const [modalOuvert, setModalOuvert] = useState(false);
 
   useEffect(() => {
-    fetch("/api/salles")
+    apiFetch("/salles")
       .then((r) => r.json())
       .then((data) => setSalles(data.salles));
   }, []);

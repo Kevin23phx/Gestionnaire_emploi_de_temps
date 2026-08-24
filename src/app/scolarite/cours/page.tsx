@@ -4,13 +4,14 @@ import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import type { UniteEnseignement } from "@/lib/types";
 import { CoursFormModal } from "@/components/cours/CoursFormModal";
+import { apiFetch } from "@/lib/api";
 
 export default function CoursPage() {
   const [cours, setCours] = useState<UniteEnseignement[] | null>(null);
   const [modalOuvert, setModalOuvert] = useState(false);
 
   useEffect(() => {
-    fetch("/api/cours")
+    apiFetch("/cours")
       .then((r) => r.json())
       .then((data) => setCours(data.cours));
   }, []);

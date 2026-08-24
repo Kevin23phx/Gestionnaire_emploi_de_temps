@@ -1,9 +1,18 @@
 import Link from "next/link";
-import { MOCK_DASHBOARD_STATS } from "@/lib/mock-data";
+import { apiFetchServer } from "@/lib/api-server";
+import type { DashboardStats } from "@/lib/types";
 import { AuditApercu } from "@/components/audit/AuditApercu";
 
-export default function TableauDeBordScolaritePage() {
-  const stats = MOCK_DASHBOARD_STATS;
+const STATS_VIDES: DashboardStats = {
+  tauxOccupationSalles: 0,
+  conflitsDetectes: 0,
+  conflitsResolus: 0,
+  coursAnnulesPeriode: 0,
+};
+
+export default async function TableauDeBordScolaritePage() {
+  const reponse = await apiFetchServer("/dashboard/stats");
+  const stats: DashboardStats = reponse.ok ? await reponse.json() : STATS_VIDES;
 
   return (
     <div>

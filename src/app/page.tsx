@@ -1,5 +1,6 @@
+import Image from "next/image";
 import Link from "next/link";
-import { Bell, Calendar, GraduationCap, WifiOff } from "lucide-react";
+import { Bell, Calendar, WifiOff } from "lucide-react";
 
 const ATOUTS = [
   {
@@ -27,9 +28,14 @@ export default function AccueilPage() {
     <div className="flex flex-1 flex-col">
       <header className="flex items-center justify-between border-b border-border bg-surface px-6 py-4">
         <div className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand text-white">
-            <GraduationCap className="h-5 w-5" aria-hidden="true" />
-          </div>
+          <Image
+            src="/logo-universite.png"
+            alt="Université Joseph Ki-Zerbo"
+            width={36}
+            height={36}
+            priority
+            className="h-9 w-9 object-contain"
+          />
           <span className="text-lg font-bold text-brand">Campus Manager</span>
         </div>
         <Link

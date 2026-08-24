@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import type { Groupe } from "@/lib/types";
+import { apiFetch } from "@/lib/api";
 
 const NOUVEAU_GROUPE = "__nouveau__";
 
@@ -21,7 +22,11 @@ export function NouveauProgrammeModal({
   onChoisi: (groupeId: string) => void;
 }) {
   const [groupeId, setGroupeId] = useState(groupes[0]?.id ?? NOUVEAU_GROUPE);
-  const [nouveauGroupe, setNouveauGroupe] = useState({ nom: "", filiere: "", niveau: "", effectif: "" });
+  // Pas de champ "effectif" ici : un groupe naît toujours à 0, jamais saisi
+  // à la main (cf. Groupe.effectif dans types.ts — toujours dérivé des
+  // étudiants réellement rattachés, comme GroupeFormModal). L'API rejette
+  // d'ailleurs explicitement tout champ inconnu dans le payload.
+  const [nouveauGroupe, setNouveauGroupe] = useState({ nom: "", filiere: "", niveau: "" });
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, setEnCours] = useState(false);
 
@@ -33,7 +38,7 @@ export function NouveauProgrammeModal({
 
     setErreur(null);
     setEnCours(true);
-    const reponse = await fetch("/api/groupes", {
+    const reponse = await apiFetch("/groupes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(nouveauGroupe),
@@ -50,10 +55,7 @@ export function NouveauProgrammeModal({
 
   const nouveauGroupeIncomplet =
     groupeId === NOUVEAU_GROUPE &&
-    (!nouveauGroupe.nom.trim() ||
-      !nouveauGroupe.filiere.trim() ||
-      !nouveauGroupe.niveau.trim() ||
-      Number(nouveauGroupe.effectif) <= 0);
+    (!nouveauGroupe.nom.trim() || !nouveauGroupe.filiere.trim() || !nouveauGroupe.niveau.trim());
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
@@ -103,14 +105,6 @@ export function NouveauProgrammeModal({
                 placeholder="Niveau (ex: L1, L2, L3, M1, M2)"
                 value={nouveauGroupe.niveau}
                 onChange={(e) => setNouveauGroupe((v) => ({ ...v, niveau: e.target.value }))}
-                className="rounded-lg border border-border px-3 py-2 text-sm"
-              />
-              <input
-                type="number"
-                min={1}
-                placeholder="Effectif"
-                value={nouveauGroupe.effectif}
-                onChange={(e) => setNouveauGroupe((v) => ({ ...v, effectif: e.target.value }))}
                 className="rounded-lg border border-border px-3 py-2 text-sm"
               />
             </div>

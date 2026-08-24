@@ -1,14 +1,24 @@
 import { Bell } from "lucide-react";
 import Link from "next/link";
-import { getSession } from "@/lib/session";
-import { MOCK_CRENEAUX, MOCK_NOTIFICATIONS } from "@/lib/mock-data";
+import { apiFetchServer } from "@/lib/api-server";
+import type { Creneau, NotificationItem } from "@/lib/types";
 import { ScheduleWeekGrid } from "@/components/schedule/ScheduleWeekGrid";
 
 export default async function EtudiantPage() {
-  const session = await getSession();
-  // FR-EDT-04/06 : un étudiant ne voit que l'emploi du temps de son propre groupe.
-  const creneaux = MOCK_CRENEAUX.filter((c) => c.groupe.id === session?.groupeId);
-  const nonLues = MOCK_NOTIFICATIONS.filter((n) => !n.lue).length;
+  // FR-EDT-04/06 : le périmètre (un étudiant ne voit que son propre groupe)
+  // est appliqué côté backend (INT-06, PlanningService.list) — aucun filtre
+  // à refaire ici.
+  const [reponseCreneaux, reponseNotifications] = await Promise.all([
+    apiFetchServer("/creneaux"),
+    apiFetchServer("/notifications"),
+  ]);
+  const { creneaux }: { creneaux: Creneau[] } = reponseCreneaux.ok
+    ? await reponseCreneaux.json()
+    : { creneaux: [] };
+  const { notifications }: { notifications: NotificationItem[] } = reponseNotifications.ok
+    ? await reponseNotifications.json()
+    : { notifications: [] };
+  const nonLues = notifications.filter((n) => !n.lue).length;
 
   return (
     <div>

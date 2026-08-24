@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import type { UniteEnseignement } from "@/lib/types";
+import { apiFetch } from "@/lib/api";
 
 // FR-REF-01 : référentiel des unités d'enseignement.
 export function CoursFormModal({
@@ -21,7 +22,7 @@ export function CoursFormModal({
     setErreur(null);
     setEnCours(true);
 
-    const reponse = await fetch("/api/cours", {
+    const reponse = await apiFetch("/cours", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code, intitule }),

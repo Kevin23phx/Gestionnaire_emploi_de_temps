@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { CalendarDays, Plus } from "lucide-react";
 import type { Creneau, Groupe } from "@/lib/types";
 import { NouveauProgrammeModal } from "@/components/planning/NouveauProgrammeModal";
+import { apiFetch } from "@/lib/api";
 
 // Liste des programmes — un par groupe (décision de cadrage 2026-08-17,
 // FR-EDT-01 : un créneau appartient toujours à un groupe précis, on ne
@@ -16,10 +17,10 @@ export default function ListeProgrammesPage() {
   const [modalOuvert, setModalOuvert] = useState(false);
 
   useEffect(() => {
-    fetch("/api/groupes")
+    apiFetch("/groupes")
       .then((r) => r.json())
       .then((data) => setGroupes(data.groupes));
-    fetch("/api/creneaux")
+    apiFetch("/creneaux")
       .then((r) => r.json())
       .then((data) => setCreneaux(data.creneaux));
   }, []);

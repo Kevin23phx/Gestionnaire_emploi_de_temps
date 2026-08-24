@@ -1,13 +1,16 @@
 import Link from "next/link";
 import { CalendarX } from "lucide-react";
 import { getSession } from "@/lib/session";
-import { MOCK_CRENEAUX } from "@/lib/mock-data";
+import { apiFetchServer } from "@/lib/api-server";
+import type { Creneau } from "@/lib/types";
 import { ScheduleWeekGrid } from "@/components/schedule/ScheduleWeekGrid";
 
 export default async function EnseignantPage() {
   const session = await getSession();
-  // FR-EDT-05/06 : un enseignant ne voit que son propre planning.
-  const creneaux = MOCK_CRENEAUX.filter((c) => c.enseignant.id === session?.enseignantId);
+  // FR-EDT-05/06 : le périmètre (un enseignant ne voit que son propre
+  // planning) est appliqué côté backend (INT-06, PlanningService.list).
+  const reponse = await apiFetchServer("/creneaux");
+  const { creneaux }: { creneaux: Creneau[] } = reponse.ok ? await reponse.json() : { creneaux: [] };
 
   return (
     <div>

@@ -1,31 +1,23 @@
 /**
- * Session — implémentation mock côté frontend (cookie signé absent : à durcir
- * côté backend avec de vrais JWT/sessions serveur, cf. README "Contrat API").
- * Sert de point de bascule unique : le jour où l'API NestJS est prête, seul ce
- * fichier (et les routes app/api/auth/*) doit changer, pas les pages.
+ * Session — lit l'identité via le backend réel (GET /auth/me), plus une
+ * simple valeur locale décodée. Le cookie `cm_session` est désormais opaque
+ * (émis par le backend, valeur aléatoire signée côté serveur) : ce fichier
+ * ne peut donc plus le décoder lui-même, contrairement à l'ancienne version
+ * mock qui y stockait un JSON en clair.
  */
-import { cookies } from "next/headers";
+import { apiFetchServer } from "./api-server";
 import type { Role } from "./types";
 
 export const SESSION_COOKIE = "cm_session";
 
 export interface Session {
-  userId: string;
-  role: Role;
   nom: string;
   prenom: string;
-  // FR-EDT-04/05/06 : périmètre de lecture propre au compte (RBAC).
-  groupeId?: string;
-  enseignantId?: string;
+  role: Role;
 }
 
 export async function getSession(): Promise<Session | null> {
-  const store = await cookies();
-  const raw = store.get(SESSION_COOKIE)?.value;
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw) as Session;
-  } catch {
-    return null;
-  }
+  const reponse = await apiFetchServer("/auth/me");
+  if (!reponse.ok) return null;
+  return (await reponse.json()) as Session;
 }

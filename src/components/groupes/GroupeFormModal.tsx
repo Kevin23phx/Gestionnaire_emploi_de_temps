@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import type { Groupe } from "@/lib/types";
+import { apiFetch } from "@/lib/api";
 
 // FR-REF-01 : référentiel des groupes/filières. Pas de champ "Effectif" ici
 // — un groupe naît vide (0 étudiant) et se peuple ensuite via
@@ -31,7 +32,7 @@ export function GroupeFormModal({
     setErreur(null);
     setEnCours(true);
 
-    const reponse = await fetch("/api/groupes", {
+    const reponse = await apiFetch("/groupes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ nom, filiere, niveau }),

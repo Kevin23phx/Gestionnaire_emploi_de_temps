@@ -1,15 +1,28 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { Suspense, useState, type FormEvent } from "react";
+import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { GraduationCap, Lock, User } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Lock, User } from "lucide-react";
 import { accueilPourRole } from "@/lib/roles";
 import type { Role } from "@/lib/types";
+import { apiFetch } from "@/lib/api";
 
 export default function ActivationPage() {
+  return (
+    <Suspense>
+      <ActivationForm />
+    </Suspense>
+  );
+}
+
+function ActivationForm() {
   const router = useRouter();
-  const [identifiant, setIdentifiant] = useState("");
+  // Pré-rempli quand on arrive depuis le lien "Activer mon compte
+  // maintenant" de la page de connexion (identifiant déjà saisi là-bas).
+  const identifiantPrerempli = useSearchParams().get("identifiant") ?? "";
+  const [identifiant, setIdentifiant] = useState(identifiantPrerempli);
   const [nouveauMotDePasse, setNouveauMotDePasse] = useState("");
   const [confirmationMotDePasse, setConfirmationMotDePasse] = useState("");
   const [erreur, setErreur] = useState<string | null>(null);
@@ -20,7 +33,7 @@ export default function ActivationPage() {
     setErreur(null);
     setEnCours(true);
 
-    const reponse = await fetch("/api/auth/activate", {
+    const reponse = await apiFetch("/auth/activate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ identifiant, nouveauMotDePasse, confirmationMotDePasse }),
@@ -43,9 +56,14 @@ export default function ActivationPage() {
     <div className="flex flex-1 items-center justify-center px-4 py-12">
       <div className="w-full max-w-md rounded-2xl border border-border bg-surface p-8 shadow-sm">
         <div className="flex flex-col items-center text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-brand text-white">
-            <GraduationCap className="h-7 w-7" aria-hidden="true" />
-          </div>
+          <Image
+            src="/logo-universite.png"
+            alt="Université Joseph Ki-Zerbo"
+            width={56}
+            height={56}
+            priority
+            className="h-14 w-14 object-contain"
+          />
           <h1 className="mt-4 text-xl font-bold text-text">Activation de votre compte</h1>
           <p className="mt-1 text-sm text-text-muted">
             Votre compte a été créé par la scolarité de votre UFR. Définissez

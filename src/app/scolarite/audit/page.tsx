@@ -4,12 +4,13 @@ import { useEffect, useState } from "react";
 import { Download } from "lucide-react";
 import type { AuditEntry } from "@/lib/types";
 import { AuditTable } from "@/components/audit/AuditTable";
+import { apiFetch } from "@/lib/api";
 
 export default function JournalAuditPage() {
   const [entries, setEntries] = useState<AuditEntry[] | null>(null);
 
   useEffect(() => {
-    fetch("/api/audit")
+    apiFetch("/audit")
       .then((r) => r.json())
       .then((data) => setEntries([...data.entries].reverse()));
   }, []);

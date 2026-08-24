@@ -5,6 +5,7 @@ import { Plus, Users } from "lucide-react";
 import type { Groupe } from "@/lib/types";
 import { GroupeFormModal } from "@/components/groupes/GroupeFormModal";
 import { GroupeEtudiantsModal } from "@/components/groupes/GroupeEtudiantsModal";
+import { apiFetch } from "@/lib/api";
 
 export default function GroupesPage() {
   const [groupes, setGroupes] = useState<Groupe[] | null>(null);
@@ -19,7 +20,7 @@ export default function GroupesPage() {
   }
 
   useEffect(() => {
-    fetch("/api/groupes")
+    apiFetch("/groupes")
       .then((r) => r.json())
       .then((data) => setGroupes(data.groupes));
   }, []);

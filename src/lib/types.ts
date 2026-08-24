@@ -120,9 +120,15 @@ export interface DemandeEnseignant {
   enseignant: Enseignant;
   type: TypeDemande;
   statut: StatutDemande;
-  creneauConcerne: string; // ID de créneau
-  creneauPropose?: string; // ID de créneau (report/permutation)
+  creneauConcerneId: string;
+  creneauProposeId?: string | null; // report/permutation
   motif: string;
+  // "report" : nouvelle plage proposée (jour/heure/salle) — le créneau
+  // cible n'existe pas encore avant validation par la scolarité.
+  jourPropose?: Creneau["jour"] | null;
+  heureDebutProposee?: string | null; // "HH:MM"
+  heureFinProposee?: string | null;
+  salleProposeeId?: string | null;
 }
 
 // FR-AUD-01/03 : journal d'audit, append-only (INV-04)

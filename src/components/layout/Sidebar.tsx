@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -8,7 +9,6 @@ import {
   Building2,
   Calendar,
   ClipboardCheck,
-  GraduationCap,
   HelpCircle,
   History,
   LayoutDashboard,
@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import type { Role } from "@/lib/types";
 import { Avatar } from "@/components/ui/Avatar";
+import { apiFetch } from "@/lib/api";
 
 interface NavItem {
   href: string;
@@ -61,7 +62,7 @@ export function Sidebar({
   const router = useRouter();
 
   async function handleDeconnexion() {
-    await fetch("/api/auth/logout", { method: "POST" });
+    await apiFetch("/auth/logout", { method: "POST" });
     router.push("/connexion");
   }
 
@@ -69,9 +70,13 @@ export function Sidebar({
     <aside className="flex h-full w-64 shrink-0 flex-col justify-between border-r border-border bg-surface px-4 py-6">
       <div>
         <div className="mb-8 flex items-center gap-2 px-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand text-white">
-            <GraduationCap className="h-5 w-5" aria-hidden="true" />
-          </div>
+          <Image
+            src="/logo-universite.png"
+            alt="Université Joseph Ki-Zerbo"
+            width={36}
+            height={36}
+            className="h-9 w-9 shrink-0 object-contain"
+          />
           <div>
             <p className="text-sm font-bold leading-none text-brand">Campus Manager</p>
             <p className="text-xs text-text-subtle">{roleLabel}</p>

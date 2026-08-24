@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import type { Salle, TypeUsageSalle } from "@/lib/types";
+import { apiFetch } from "@/lib/api";
 
 const TYPES: { value: TypeUsageSalle; label: string }[] = [
   { value: "propre", label: "Propre à l'UFR" },
@@ -31,7 +32,7 @@ export function SalleFormModal({
     setErreur(null);
     setEnCours(true);
 
-    const reponse = await fetch("/api/salles", {
+    const reponse = await apiFetch("/salles", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ nom, batiment, capacite, typeUsage }),

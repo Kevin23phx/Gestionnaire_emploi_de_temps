@@ -1,7 +1,7 @@
 import { Bell, CheckCircle2, Clock, XCircle } from "lucide-react";
-import { MOCK_NOTIFICATIONS } from "@/lib/mock-data";
+import { apiFetchServer } from "@/lib/api-server";
 import { Badge } from "@/components/ui/StatusBadge";
-import type { TypeNotification } from "@/lib/types";
+import type { NotificationItem, TypeNotification } from "@/lib/types";
 
 const ICONES: Record<TypeNotification, typeof Bell> = {
   modifie: Clock,
@@ -21,7 +21,12 @@ function formatHeure(iso: string): string {
   );
 }
 
-export default function NotificationsEtudiantPage() {
+export default async function NotificationsEtudiantPage() {
+  const reponse = await apiFetchServer("/notifications");
+  const { notifications }: { notifications: NotificationItem[] } = reponse.ok
+    ? await reponse.json()
+    : { notifications: [] };
+
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
@@ -35,7 +40,7 @@ export default function NotificationsEtudiantPage() {
         <div className="border-b border-border bg-surface-muted px-4 py-2 text-xs font-semibold uppercase tracking-wide text-text-subtle">
           Aujourd&apos;hui
         </div>
-        {MOCK_NOTIFICATIONS.map((notification) => {
+        {notifications.map((notification) => {
           const Icon = ICONES[notification.type];
           const badge = BADGES[notification.type];
           return (

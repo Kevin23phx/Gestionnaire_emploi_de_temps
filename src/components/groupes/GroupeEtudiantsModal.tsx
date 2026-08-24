@@ -8,6 +8,7 @@ import { normaliser } from "@/lib/recherche";
 // bibliothèque — le vrai module est chargé à la demande (import() dynamique
 // dans lireFichier) pour ne pas alourdir le chargement initial de la page.
 import type ExcelJS from "exceljs";
+import { apiFetch } from "@/lib/api";
 
 // FR-REF-01 : gestion du rattachement des étudiants à un groupe — remplace
 // la saisie d'un "effectif" à la main (retour utilisateur du 2026-08-18).
@@ -35,7 +36,7 @@ export function GroupeEtudiantsModal({
   const [lectureFichier, setLectureFichier] = useState(false);
 
   useEffect(() => {
-    fetch("/api/etudiants")
+    apiFetch("/etudiants")
       .then((r) => r.json())
       .then((data) => setEtudiants(data.etudiants));
   }, []);
@@ -51,7 +52,7 @@ export function GroupeEtudiantsModal({
 
   async function retirer(etudiantId: string) {
     setEnCours(true);
-    const reponse = await fetch("/api/etudiants/affecter", {
+    const reponse = await apiFetch("/etudiants/affecter", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ etudiantIds: [etudiantId], groupeId: null }),
@@ -182,7 +183,7 @@ export function GroupeEtudiantsModal({
     }
     setErreurImport(null);
     setEnCours(true);
-    const reponse = await fetch("/api/etudiants", {
+    const reponse = await apiFetch("/etudiants", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

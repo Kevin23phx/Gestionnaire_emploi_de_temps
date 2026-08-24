@@ -13,6 +13,7 @@ import { detecterConflits } from "@/lib/conflict-detection";
 import { decouperSelonPauses } from "@/lib/pauses";
 import { normaliser } from "@/lib/recherche";
 import { ConflitGraviteBadge } from "@/components/ui/StatusBadge";
+import { apiFetch } from "@/lib/api";
 
 const JOURS: { value: Creneau["jour"]; label: string }[] = [
   { value: "lundi", label: "Lun" },
@@ -44,6 +45,11 @@ interface Props {
   onSave: (creneaux: Creneau[], motifDerogation: string | null) => void;
   onEnseignantCree: (enseignant: Enseignant) => void;
   onUeCree: (ue: UniteEnseignement) => void;
+  // Erreur renvoyée par le backend après un onSave() qui a échoué (ex. 409 —
+  // conflit détecté côté serveur alors que l'aperçu client ne le voyait pas
+  // encore) : affichée au même endroit que les erreurs de validation locales,
+  // le formulaire reste ouvert pour corriger/compléter le motif de dérogation.
+  erreurExterne?: string | null;
 }
 
 // FR-EDT-01/02/03 + FR-CONF-01→08 : un seul formulaire pour créer, modifier
@@ -65,6 +71,7 @@ export function CreneauFormModal({
   onSave,
   onEnseignantCree,
   onUeCree,
+  erreurExterne,
 }: Props) {
   const modeEdition = creneau !== null;
 
@@ -232,7 +239,7 @@ export function CreneauFormModal({
       return unitesEnseignement.find((u) => u.id === ueId) ?? null;
     }
 
-    const reponse = await fetch("/api/cours", {
+    const reponse = await apiFetch("/cours", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ intitule: ueIntituleLibre }),
@@ -251,7 +258,7 @@ export function CreneauFormModal({
       return enseignants.find((e) => e.id === enseignantId) ?? null;
     }
 
-    const reponse = await fetch("/api/enseignants", {
+    const reponse = await apiFetch("/enseignants", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(nouvelEnseignant),
@@ -552,8 +559,10 @@ export function CreneauFormModal({
             </div>
           ) : null}
 
-          {erreur ? (
-            <p className="rounded-lg bg-status-danger-bg px-3 py-2 text-sm text-status-danger">{erreur}</p>
+          {erreur || erreurExterne ? (
+            <p className="rounded-lg bg-status-danger-bg px-3 py-2 text-sm text-status-danger">
+              {erreur ?? erreurExterne}
+            </p>
           ) : null}
 
           <div className="mt-2 flex items-center justify-between gap-2">
