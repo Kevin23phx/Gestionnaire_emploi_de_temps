@@ -3,7 +3,9 @@
 **Étape 1 de la chaîne méthodologique** — répond à : *pourquoi ce système doit-il exister ?*
 Ce document fige le **problème**. Il ne mentionne aucune solution technique — c'est le rôle du SRS et de l'architecture (documents suivants).
 
-Sources : `Cahier_des_charges_Campus_Manager.md` (v2.1), décisions de cadrage prises le 2026-08-11 (voir note de cadrage en fin de document).
+Sources : `Cahier_des_charges_Campus_Manager.md` (v2.1), décisions de cadrage prises le 2026-08-11 et le 2026-08-27 (voir notes de cadrage en fin de document).
+
+> **Note de cadrage (2026-08-27) : passage à la V2 multi-UFR.** Le pilote sur une seule UFR ayant permis d'échanger avec le responsable côté UJKZ, il ressort que la gestion de plusieurs UFR par une seule scolarité centrale est structurellement intenable à l'échelle de l'UJKZ (~48 000 étudiants, 5 UFR). Décision : le périmètre du produit passe dès maintenant à une gestion **multi-UFR**, avec un compte **Admin** central qui supervise et un compte **Gestionnaire de scolarité** par UFR qui opère sur le périmètre de sa seule UFR. Ce document et les 4 suivants (`02`–`05`) sont mis à jour en conséquence ; les passages devenus obsolètes du cadrage MVP (§2, §4) sont marqués explicitement plutôt que supprimés silencieusement.
 
 ---
 
@@ -24,9 +26,10 @@ Utilisateurs réels qui subissent le problème aujourd'hui (pas des personas mar
 
 - **L'étudiant** d'un groupe/filière d'une UFR de l'UJKZ, qui se déplace parfois pour un cours annulé ou déplacé faute d'avoir été informé à temps.
 - **L'enseignant**, rattaché à une ou plusieurs UE, qui doit signaler une absence ou un report et n'a aujourd'hui aucun canal structuré pour le faire ni pour savoir si sa demande a été prise en compte.
-- **La scolarité de l'UFR**, qui construit et corrige l'emploi du temps de son UFR à la main, sans outil pour détecter automatiquement un conflit de salle, d'enseignant ou de capacité avant qu'il ne se produise sur le terrain.
+- **La scolarité de l'UFR** (désormais **Gestionnaire de scolarité d'UFR**), qui construit et corrige l'emploi du temps de sa propre UFR à la main, sans outil pour détecter automatiquement un conflit de salle, d'enseignant ou de capacité avant qu'il ne se produise sur le terrain.
+- **L'Admin** *(nouveau, 2026-08-27)* : le porteur de projet côté UJKZ a remonté qu'un seul compte scolarité ne peut plus, à l'échelle de l'établissement (5 UFR, ~48 000 étudiants), gérer à la fois le référentiel/planning de chaque UFR et la supervision d'ensemble. L'Admin ne gère plus lui-même le référentiel ou le planning d'une UFR — il crée les UFR, y affecte un compte Gestionnaire, et supervise (lecture) l'activité de toutes les UFR.
 
-> **Note de cadrage (2026-08-11)** : le cahier des charges (§3) identifie deux acteurs supplémentaires — la DEP (structure intervenant sur les salles communes/louées) et le DSI (administration système). Ils sont **explicitement hors périmètre du MVP** par décision de cadrage : leurs fonctions sont assumées de façon simplifiée par la Scolarité d'UFR pilote le temps que les structures de gestion des salles restent à finaliser côté UJKZ (cf. cahier des charges §1.2, §6.3 — cartographie incomplète). Ils redeviennent des acteurs à part entière dès la V2 (cf. §11 du cahier des charges, extension multi-UFR).
+> **Note de cadrage (2026-08-11, révisée 2026-08-27)** : le cahier des charges (§3) identifie deux acteurs supplémentaires — la DEP (structure intervenant sur les salles communes/louées) et le DSI (administration système). Le DSI reste **hors périmètre**. La **DEP entre dans le périmètre dès le 2026-08-27** : elle est modélisée comme une structure gestionnaire transversale de salles communes/louées (au même titre qu'une UFR pour le champ "structure gestionnaire" d'une salle), mais sans compte dédié pour l'instant — ses salles sont administrées par l'Admin en attendant qu'un référent DEP soit désigné côté UJKZ.
 
 ## 3. Cas d'usage principaux
 
@@ -48,7 +51,8 @@ Explicitement exclu, pour éviter la dérive de périmètre :
 - Planification des examens et surveillances (évolution V2 envisageable).
 - Espace de cours en ligne (LMS/Moodle-like).
 - Gestion de la vie étudiante hors enseignement (bourses, hébergement, restauration).
-- **Pour le MVP spécifiquement** (décision de cadrage 2026-08-11) : gestion des salles communes/louées inter-UFR et arbitrage DEP, comptes DSI distincts, extension multi-UFR — le MVP couvre une seule UFR pilote (à désigner) où toutes les salles utilisées sont considérées comme propres à cette UFR.
+- Comptes DSI distincts (décision de cadrage 2026-08-11, toujours valable) — hors périmètre.
+- ~~Extension multi-UFR~~ *(décision de cadrage 2026-08-11, **annulée le 2026-08-27**)* : c'est désormais le périmètre courant, pas une extension future — voir note de cadrage 2026-08-27 en §2. Reste hors périmètre pour cette itération : l'arbitrage automatique des conflits inter-UFR sur une salle commune/louée de la DEP (la salle est modélisée, mais le circuit de décision en cas de conflit entre deux UFR n'est pas encore spécifié — cf. `03_Contrat_Invariants_Campus_Manager.md` §4).
 - Campus Manager n'est pas un concurrent de CampusFaso : aucune fonctionnalité d'orientation, d'inscription ou de résultats académiques n'y sera ajoutée.
 
 ## 5. Critères de succès

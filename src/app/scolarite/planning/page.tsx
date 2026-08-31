@@ -18,12 +18,24 @@ export default function ListeProgrammesPage() {
 
   useEffect(() => {
     apiFetch("/groupes")
-      .then((r) => r.json())
-      .then((data) => setGroupes(data.groupes));
+      .then((r) => {
+        if (r.status === 401) {
+          router.replace("/connexion");
+          return null;
+        }
+        return r.json();
+      })
+      .then((data) => data && setGroupes(data.groupes ?? []));
     apiFetch("/creneaux")
-      .then((r) => r.json())
-      .then((data) => setCreneaux(data.creneaux));
-  }, []);
+      .then((r) => {
+        if (r.status === 401) {
+          router.replace("/connexion");
+          return null;
+        }
+        return r.json();
+      })
+      .then((data) => data && setCreneaux(data.creneaux ?? []));
+  }, [router]);
 
   const pretes = groupes !== null && creneaux !== null;
 

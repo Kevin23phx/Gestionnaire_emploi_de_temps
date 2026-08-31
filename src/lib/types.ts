@@ -1,22 +1,38 @@
 /**
- * Contrat de données Campus Manager — MVP (UFR pilote).
+ * Contrat de données Campus Manager — V2 multi-UFR.
  * Dérivé de 02_SRS_Campus_Manager.md et 03_Contrat_Invariants_Campus_Manager.md.
  * Ce fichier est la référence partagée avec le backend (NestJS) : toute évolution
  * doit être répercutée côté API pour que les deux équipes restent synchronisées.
  */
 
-// RM-03 : un compte a exactement un rôle parmi ces 3 pour le MVP.
-export type Role = "etudiant" | "enseignant" | "scolarite";
+// RM-03 (V2) : un compte a exactement un rôle parmi ces 4.
+export type Role = "etudiant" | "enseignant" | "scolarite" | "admin";
 
 export interface Utilisateur {
   id: string;
   nom: string;
   prenom: string;
   role: Role;
+  // Gestionnaire de scolarité uniquement (INV-10) — jamais renseigné pour
+  // un Admin, qui supervise toutes les UFR sans en avoir une propre.
+  ufrId?: string | null;
   // Étudiant uniquement
   groupeId?: string;
   // Enseignant uniquement
   enseignantId?: string;
+}
+
+// V2 multi-UFR : les 5 UFR réelles de l'UJKZ (SH, SDS, SVT, SEA, LAC).
+export interface Ufr {
+  id: string;
+  nom: string;
+  sigle: string;
+}
+
+// Réponse de GET /api/ufrs — inclut le statut du compte Gestionnaire pour
+// l'écran de supervision Admin.
+export interface UfrAvecGestionnaire extends Ufr {
+  gestionnaire: { identifiant: string; active: boolean } | null;
 }
 
 export interface Groupe {
@@ -24,6 +40,12 @@ export interface Groupe {
   nom: string; // ex. "L3 INFO - Groupe A"
   filiere: string;
   niveau: string;
+  // FR-REF-12 : année EN COURS de ce groupe précis (ex. "2025-2026") —
+  // distincte d'Etudiant.anneeAcademique (année d'inscription, immuable).
+  // Une promotion (L1→L2) se fait en créant un nouveau Groupe pour la
+  // nouvelle année, pas en modifiant celui-ci sur place.
+  anneeAcademique: string;
+  ufrId: string; // INT-07 : toujours rattaché à exactement une UFR
   effectif: number; // dérivé du nombre d'Etudiant.groupeId === ce groupe (cf. Etudiant) — jamais saisi à la main une fois des étudiants rattachés
 }
 
@@ -39,6 +61,12 @@ export interface Etudiant {
   prenom: string;
   filiere: string;
   niveau: string;
+  // FR-REF-09 : année d'inscription (ex. "2025-2026") — sert au filtrage
+  // (FR-REF-11), pas à assouplir l'unicité de l'INE (FR-REF-08).
+  anneeAcademique: string;
+  // INV-09 : toujours rattaché à exactement une UFR ; changement réservé à
+  // l'Admin (FR-ADMIN-05, POST /etudiants/:id/transferer-ufr).
+  ufrId: string;
   groupeId?: string;
 }
 
@@ -46,10 +74,15 @@ export interface Enseignant {
   id: string;
   nom: string;
   prenom: string;
+  // FR-REF-06 : affectation explicite, potentiellement à plusieurs UFR —
+  // absent sur les formes dénormalisées (ex. Creneau.enseignant) qui ne le
+  // portent pas.
+  ufrs?: { ufrId: string }[];
 }
 
-// FR-REF-02/03 : chaque salle porte capacité, structure gestionnaire et type d'usage.
-export type StructureGestionnaire = "UFR_PILOTE"; // seule valeur possible pour le MVP (RM-05)
+// FR-REF-02/03 (V2) : "UFR" (ufrId renseigné) ou "DEP" — salle commune/louée
+// transversale, jamais rattachée à une UFR (cf. 01_PRD note 2026-08-27).
+export type StructureGestionnaire = "UFR" | "DEP";
 export type TypeUsageSalle = "propre" | "commune" | "louee" | "gratuite";
 
 export interface Salle {
@@ -58,6 +91,7 @@ export interface Salle {
   batiment: string;
   capacite: number;
   structureGestionnaire: StructureGestionnaire;
+  ufrId: string | null; // null SSI structureGestionnaire === "DEP"
   typeUsage: TypeUsageSalle;
 }
 
@@ -65,6 +99,10 @@ export interface UniteEnseignement {
   id: string;
   code: string;
   intitule: string;
+  // FR-REF-13 : niveau visé par ce cours (L1...M2) — affiché en parenthèses
+  // à côté de l'intitulé.
+  niveau: string;
+  ufrId: string;
 }
 
 // Statut visuel appliqué de façon identique sur toutes les vues (étudiant/enseignant/scolarité)

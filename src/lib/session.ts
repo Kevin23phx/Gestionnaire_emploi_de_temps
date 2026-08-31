@@ -14,6 +14,9 @@ export interface Session {
   nom: string;
   prenom: string;
   role: Role;
+  // Gestionnaire de scolarité uniquement (INV-10) — jamais renseigné pour
+  // un Admin ni un Étudiant/Enseignant.
+  ufrId?: string | null;
 }
 
 export async function getSession(): Promise<Session | null> {

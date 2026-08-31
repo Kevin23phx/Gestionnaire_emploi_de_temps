@@ -32,7 +32,7 @@ export default function GroupesPage() {
           <h1 className="text-xl font-bold text-text">Groupes</h1>
           {/* FR-REF-01 : import Excel/CSV à brancher sur l'API une fois disponible */}
           <p className="text-sm text-text-muted">
-            Référentiel des groupes/filières de l&apos;UFR pilote
+            Référentiel des groupes/filières de votre UFR
             {groupes ? ` — ${groupes.length} groupes.` : "..."}
           </p>
         </div>
@@ -59,7 +59,9 @@ export default function GroupesPage() {
           <tbody>
             {(groupes ?? []).map((groupe) => (
               <tr key={groupe.id} className="border-t border-border">
-                <td className="px-4 py-2 font-medium text-text">{groupe.nom}</td>
+                <td className="px-4 py-2 font-medium text-text">
+                  {groupe.nom} <span className="font-normal text-text-subtle">({groupe.anneeAcademique})</span>
+                </td>
                 <td className="px-4 py-2 text-text-muted">{groupe.filiere}</td>
                 <td className="px-4 py-2 text-text-muted">{groupe.niveau}</td>
                 <td className="px-4 py-2 text-text-muted">{groupe.effectif} étudiants</td>

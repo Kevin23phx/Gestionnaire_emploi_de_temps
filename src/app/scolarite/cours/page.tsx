@@ -23,7 +23,7 @@ export default function CoursPage() {
           <h1 className="text-xl font-bold text-text">Cours</h1>
           {/* FR-REF-01 : import Excel/CSV à brancher sur l'API une fois disponible */}
           <p className="text-sm text-text-muted">
-            Référentiel des unités d&apos;enseignement de l&apos;UFR pilote
+            Référentiel des unités d&apos;enseignement de votre UFR
             {cours ? ` — ${cours.length} cours.` : "..."}
           </p>
         </div>
@@ -48,7 +48,9 @@ export default function CoursPage() {
             {(cours ?? []).map((ue) => (
               <tr key={ue.id} className="border-t border-border">
                 <td className="px-4 py-2 font-medium text-text">{ue.code}</td>
-                <td className="px-4 py-2 text-text-muted">{ue.intitule}</td>
+                <td className="px-4 py-2 text-text-muted">
+                  {ue.intitule} <span className="text-text-subtle">({ue.niveau})</span>
+                </td>
               </tr>
             ))}
           </tbody>

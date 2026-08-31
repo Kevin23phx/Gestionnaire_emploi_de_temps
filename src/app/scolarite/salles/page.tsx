@@ -13,11 +13,11 @@ const USAGE_LABEL: Record<TypeUsageSalle, string> = {
   gratuite: "Gratuite",
 };
 
-// Seule valeur possible pour le MVP (RM-05) — la table est prête à accueillir
-// d'autres structures (DEP, etc.) dès qu'elles seront identifiées, sans
-// jamais laisser un code technique brut fuiter dans l'interface.
+// V2 : "UFR" (propre au Gestionnaire authentifié) ou "DEP" (salle commune/
+// louée transversale, gérée par l'Admin — cf. 01_PRD note 2026-08-27).
 const GESTIONNAIRE_LABEL: Record<StructureGestionnaire, string> = {
-  UFR_PILOTE: "UFR pilote",
+  UFR: "Mon UFR",
+  DEP: "DEP (commune/louée)",
 };
 
 export default function SallesPage() {
@@ -37,7 +37,7 @@ export default function SallesPage() {
           <h1 className="text-xl font-bold text-text">Salles</h1>
           {/* FR-REF-01 : import Excel/CSV à brancher sur l'API une fois disponible */}
           <p className="text-sm text-text-muted">
-            Référentiel des salles de l&apos;UFR pilote
+            Référentiel des salles de votre UFR
             {salles ? ` — ${salles.length} salles.` : "..."}
           </p>
         </div>

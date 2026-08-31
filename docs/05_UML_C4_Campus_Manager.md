@@ -13,18 +13,20 @@ Règle d'or respectée : le **comportement (UML)** est modélisé avant la **str
 graph TB
     Etudiant((Étudiant))
     Enseignant((Enseignant))
-    Scolarite((Scolarité d'UFR))
+    Scolarite((Gestionnaire de scolarité d'UFR))
+    Admin((Admin))
     CM[Campus Manager]
     SMS[["Fournisseur SMS/Email externe<br/>(canal de secours)"]]
     Push[["Service Web Push du navigateur"]]
-    CF[["CampusFaso<br/>(hors périmètre MVP, interopérabilité future)"]]
+    CF[["CampusFaso<br/>(hors périmètre, interopérabilité future)"]]
 
     Etudiant -->|consulte son planning, reçoit des notifications| CM
-    Enseignant -->|consulte son planning, signale une absence| CM
-    Scolarite -->|gère le référentiel et l'emploi du temps| CM
+    Enseignant -->|consulte son planning dans ses UFR, signale une absence| CM
+    Scolarite -->|gère le référentiel et l'emploi du temps de son UFR| CM
+    Admin -->|crée les UFR et gestionnaires, supervise en lecture| CM
     CM -->|notification critique| SMS
     CM -->|notification push| Push
-    CM -.->|export/import futur, non connecté au MVP| CF
+    CM -.->|export/import futur, non connecté| CF
 ```
 
 ## 2. UML — Cas d'usage
@@ -36,22 +38,29 @@ graph LR
     subgraph Acteurs
         E((Étudiant))
         T((Enseignant))
-        S((Scolarité d'UFR))
+        S((Gestionnaire de scolarité d'UFR))
+        A((Admin))
     end
 
-    subgraph "Cas d'usage — Campus Manager MVP"
+    subgraph "Cas d'usage — Campus Manager V2 multi-UFR"
         UC1(["S'authentifier / activer son compte"])
         UC2(["Consulter l'emploi du temps de son groupe"])
         UC3(["Consulter son planning personnel"])
         UC4(["Recevoir une notification de changement"])
         UC5(["Signaler une absence / demander un report"])
         UC6(["Suivre le statut d'une demande"])
-        UC7(["Importer le référentiel académique"])
+        UC7(["Importer le référentiel académique de son UFR"])
         UC8(["Créer / modifier / annuler un créneau"])
         UC9(["Détecter les conflits"])
         UC10(["Valider une demande enseignant"])
-        UC11(["Consulter le journal d'audit"])
-        UC12(["Consulter le tableau de bord"])
+        UC11(["Consulter le journal d'audit de son UFR"])
+        UC12(["Consulter le tableau de bord de son UFR"])
+        UC13(["Créer une UFR"])
+        UC14(["Créer un compte Gestionnaire pour une UFR"])
+        UC15(["Superviser toutes les UFR en lecture"])
+        UC16(["Transférer un étudiant vers une autre UFR"])
+        UC17(["Filtrer les étudiants par année/filière"])
+        UC18(["Télécharger le canevas d'import"])
     end
 
     E --> UC1
@@ -68,9 +77,18 @@ graph LR
     S --> UC10
     S --> UC11
     S --> UC12
+    S --> UC17
+    S --> UC18
+    A --> UC1
+    A --> UC13
+    A --> UC14
+    A --> UC15
+    A --> UC16
 
+    UC7 -. include .-> UC18
     UC8 -. include .-> UC9
     UC10 -. include .-> UC8
+    UC14 -. include .-> UC13
 ```
 
 ## 3. UML — Diagramme de séquence
@@ -79,8 +97,9 @@ graph LR
 
 ```mermaid
 sequenceDiagram
-    actor Sco as Scolarité d'UFR
-    participant UI as PWA (Scolarité)
+    actor Sco as Gestionnaire de scolarité (UFR X)
+    participant UI as PWA (Gestionnaire)
+    participant RG as RBAC Guard
     participant PM as PlanningModule
     participant CE as ConflictEngineModule
     participant DB as PostgreSQL
@@ -91,6 +110,8 @@ sequenceDiagram
 
     Sco->>UI: Modifie le créneau (nouvelle salle, motif)
     UI->>PM: PATCH /creneaux/:id {salle, motif}
+    PM->>RG: Le créneau appartient-il à l'UFR du Gestionnaire ?
+    RG-->>PM: OK (sinon rejet, INT-07) [V2]
     PM->>PM: Vérifie que le motif n'est pas vide (INT-03)
     PM->>CE: Évalue les conflits (salle, enseignant, groupe, capacité)
     CE->>DB: Requête de chevauchement (contrainte EXCLUDE)
@@ -110,18 +131,43 @@ sequenceDiagram
     SW-->>Sco: Confirmation — reçue en moins d'une minute (FR-NOTIF-01)
 ```
 
+### 3bis. UML — Diagramme de séquence : création d'une UFR et de son Gestionnaire `[V2]`
+
+*Second flux ajouté au passage multi-UFR : c'est celui qui engage le plus les nouveaux invariants (INT-09, INV-10) — la seule porte d'entrée pour faire exister une nouvelle UFR dans le système.*
+
+```mermaid
+sequenceDiagram
+    actor Ad as Admin
+    participant UI as PWA (Admin)
+    participant UM as UfrModule
+    participant DB as PostgreSQL
+    participant AU as AuditModule
+
+    Ad->>UI: Crée une UFR (nom "UFR/SVT", sigle "svt")
+    UI->>UM: POST /ufrs {nom, sigle}
+    UM->>UM: Vérifie le rôle Admin (sinon rejet, INT-09)
+    UM->>DB: INSERT Ufr
+    Ad->>UI: Crée le compte Gestionnaire de cette UFR
+    UI->>UM: POST /ufrs/:id/gestionnaire {nom, prenom}
+    UM->>UM: Construit l'identifiant "scolarite.svt" (FR-ADMIN-02)
+    UM->>DB: INSERT Utilisateur {role: gestionnaire, ufrId, sans mot de passe}
+    UM->>AU: Écrit l'entrée d'audit (auteur Admin, UFR créée, gestionnaire créé)
+    AU->>DB: INSERT audit_log (append-only — INV-04)
+    UM-->>UI: UFR + identifiant du compte Gestionnaire (à activer, FR-AUTH-03)
+```
+
 ## 4. C4 — Niveau Conteneur
 
 *Quels services existent, et comment communiquent-ils ?*
 
 ```mermaid
 graph TB
-    Utilisateur((Étudiant / Enseignant / Scolarité))
+    Utilisateur((Étudiant / Enseignant / Gestionnaire / Admin))
 
     subgraph "Campus Manager"
-        PWA["PWA — Next.js<br/>vues Étudiant / Enseignant / Scolarité"]
+        PWA["PWA — Next.js<br/>vues Étudiant / Enseignant / Gestionnaire / Admin"]
         SW["Service Worker<br/>cache offline + réception push"]
-        API["API Backend — NestJS<br/>Auth, Planning, ConflictEngine,<br/>Notification, Audit, Request, Sync"]
+        API["API Backend — NestJS<br/>Auth, Accounts, Ufr, Referentiel, Planning,<br/>ConflictEngine, Notification, Audit, Request, Sync"]
         DB[("PostgreSQL<br/>données + LISTEN/NOTIFY")]
     end
 
@@ -145,9 +191,10 @@ graph TB
 ```mermaid
 graph TB
     subgraph "API Backend (NestJS)"
-        Guard["RBAC Guard"]
+        Guard["RBAC Guard<br/>(scope UFR + rôle Admin) [V2]"]
         Auth["AuthModule"]
         Acc["AccountsModule"]
+        Ufr["UfrModule [V2, nouveau]"]
         Ref["ReferentielModule"]
         Plan["PlanningModule"]
         Conf["ConflictEngineModule"]
@@ -167,10 +214,15 @@ graph TB
     Req --> Plan
     Req --> Audit
     Acc --> Auth
+    Ufr --> Guard
+    Ufr --> Acc
+    Ufr --> Audit
+    Ref --> Guard
     Ref --> DB
     Conf --> DB
     Audit --> DB
     Notif --> DB
+    Dash --> Guard
     Dash --> DB
     Sync --> DB
 ```

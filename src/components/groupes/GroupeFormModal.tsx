@@ -21,12 +21,13 @@ export function GroupeFormModal({
   const [nom, setNom] = useState("");
   const [filiere, setFiliere] = useState("");
   const [niveau, setNiveau] = useState("");
+  const [anneeAcademique, setAnneeAcademique] = useState("");
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, setEnCours] = useState(false);
 
   async function handleSubmit() {
-    if (!nom.trim() || !filiere.trim() || !niveau.trim()) {
-      setErreur("Le nom, la filière et le niveau sont obligatoires.");
+    if (!nom.trim() || !filiere.trim() || !niveau.trim() || !anneeAcademique.trim()) {
+      setErreur("Le nom, la filière, le niveau et l'année académique sont obligatoires.");
       return;
     }
     setErreur(null);
@@ -35,7 +36,7 @@ export function GroupeFormModal({
     const reponse = await apiFetch("/groupes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nom, filiere, niveau }),
+      body: JSON.stringify({ nom, filiere, niveau, anneeAcademique }),
     });
     const data = await reponse.json();
     setEnCours(false);
@@ -90,6 +91,21 @@ export function GroupeFormModal({
               placeholder="ex: L1, L2, L3, M1, M2"
               className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
             />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-text">Année académique</label>
+            <input
+              type="text"
+              value={anneeAcademique}
+              onChange={(e) => setAnneeAcademique(e.target.value)}
+              placeholder="ex: 2025-2026"
+              className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
+            />
+            <p className="mt-1 text-xs text-text-subtle">
+              L&apos;année en cours de CE groupe — pour promouvoir une cohorte, créez un nouveau groupe pour la
+              nouvelle année/niveau puis déplacez-y les étudiants.
+            </p>
           </div>
 
           {erreur ? (

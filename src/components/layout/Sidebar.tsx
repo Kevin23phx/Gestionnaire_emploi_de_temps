@@ -9,8 +9,10 @@ import {
   Building2,
   Calendar,
   ClipboardCheck,
+  GraduationCap,
   HelpCircle,
   History,
+  Landmark,
   LayoutDashboard,
   LogOut,
   Users,
@@ -39,9 +41,18 @@ const NAV_ITEMS: Record<Role, NavItem[]> = {
     { href: "/scolarite/planning", label: "Programmes", icon: Calendar },
     { href: "/scolarite/salles", label: "Salles", icon: Building2 },
     { href: "/scolarite/groupes", label: "Groupes", icon: Users },
+    { href: "/scolarite/etudiants", label: "Étudiants", icon: GraduationCap },
     { href: "/scolarite/cours", label: "Cours", icon: BookOpen },
     { href: "/scolarite/demandes", label: "Demandes", icon: ClipboardCheck },
     { href: "/scolarite/audit", label: "Journal d'audit", icon: History },
+  ],
+  // FR-ADMIN-01/02/03 : l'Admin ne gère plus lui-même de référentiel/planning
+  // (délégué aux Gestionnaires) — sa navigation ne porte que sur la création
+  // d'UFR/Gestionnaires et la supervision transverse en lecture.
+  admin: [
+    { href: "/admin", label: "Supervision", icon: LayoutDashboard },
+    { href: "/admin/ufrs", label: "UFR", icon: Landmark },
+    { href: "/admin/audit", label: "Journal d'audit", icon: History },
   ],
 };
 

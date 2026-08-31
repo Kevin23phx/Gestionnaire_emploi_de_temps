@@ -136,7 +136,7 @@ export function CreneauFormModal({
     if (!groupeChoisi || !salleChoisie || jours.size === 0) return [];
     const ue =
       ueId === NOUVELLE_UE
-        ? { id: "ue-temp", code: "", intitule: ueIntituleLibre || "(nouvelle UE)" }
+        ? { id: "ue-temp", code: "", intitule: ueIntituleLibre || "(nouvelle UE)", niveau: "", ufrId: "" }
         : unitesEnseignement.find((u) => u.id === ueId);
     const enseignant =
       enseignantId === NOUVEL_ENSEIGNANT

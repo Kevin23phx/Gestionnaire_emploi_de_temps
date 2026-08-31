@@ -11,6 +11,7 @@ const ROLE_LABEL: Record<Role, string> = {
   etudiant: "Espace Étudiant",
   enseignant: "Espace Enseignant",
   scolarite: "Portail Scolarité",
+  admin: "Espace Admin",
 };
 
 // La majorité des utilisateurs consultent Campus Manager depuis un

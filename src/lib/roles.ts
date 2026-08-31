@@ -10,5 +10,7 @@ export function accueilPourRole(role: Role): string {
       return "/enseignant";
     case "scolarite":
       return "/scolarite";
+    case "admin":
+      return "/admin";
   }
 }

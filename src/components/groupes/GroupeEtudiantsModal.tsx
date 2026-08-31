@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { FileUp, UserMinus, X } from "lucide-react";
+import { Download, FileUp, UserMinus, X } from "lucide-react";
 import type { Etudiant, Groupe } from "@/lib/types";
 import { normaliser } from "@/lib/recherche";
 // Import de type uniquement : effacé à la compilation, ne charge pas la
@@ -30,10 +30,15 @@ export function GroupeEtudiantsModal({
 }) {
   const [etudiants, setEtudiants] = useState<Etudiant[] | null>(null);
   const [texteImport, setTexteImport] = useState("");
+  // FR-REF-09 : appliquée à tout le lot par défaut — une ligne peut la
+  // surcharger individuellement si le fichier importé porte déjà sa propre
+  // colonne "Année académique" (ex. canevas rempli sur plusieurs rentrées).
+  const [anneeAcademiqueLot, setAnneeAcademiqueLot] = useState("");
   const [erreurImport, setErreurImport] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<string | null>(null);
   const [enCours, setEnCours] = useState(false);
   const [lectureFichier, setLectureFichier] = useState(false);
+  const [telechargementCanevas, setTelechargementCanevas] = useState(false);
 
   useEffect(() => {
     apiFetch("/etudiants")
@@ -94,13 +99,18 @@ export function GroupeEtudiantsModal({
 
   // Détecte une éventuelle ligne d'en-tête ("INE, Nom, Prénom" ou
   // "Matricule; Nom; Prénom", dans n'importe quel ordre) pour retrouver la
-  // bonne colonne ; à défaut, ordre par défaut INE / Nom / Prénom.
-  function mapperCellules(lignesDeCellules: string[][]): { ine: string; nom: string; prenom: string }[] {
+  // bonne colonne ; à défaut, ordre par défaut INE / Nom / Prénom. La
+  // colonne "Année académique" (canevas, FR-REF-10) est optionnelle : sans
+  // en-tête détecté, on retombe sur le champ unique appliqué à tout le lot.
+  function mapperCellules(
+    lignesDeCellules: string[][],
+  ): { ine: string; nom: string; prenom: string; anneeAcademique?: string }[] {
     if (lignesDeCellules.length === 0) return [];
 
     let indexIne = 0;
     let indexNom = 1;
     let indexPrenom = 2;
+    let indexAnnee = -1;
     let debut = 0;
 
     const enTete = lignesDeCellules[0].map((c) => normaliser(c));
@@ -111,6 +121,7 @@ export function GroupeEtudiantsModal({
       indexIne = iIne;
       indexNom = iNom;
       indexPrenom = iPrenom;
+      indexAnnee = enTete.findIndex((c) => c.includes("annee"));
       debut = 1;
     }
 
@@ -118,10 +129,11 @@ export function GroupeEtudiantsModal({
       ine: cellules[indexIne]?.trim() ?? "",
       nom: cellules[indexNom]?.trim() ?? "",
       prenom: cellules[indexPrenom]?.trim() ?? "",
+      anneeAcademique: indexAnnee !== -1 ? cellules[indexAnnee]?.trim() || undefined : undefined,
     }));
   }
 
-  function parserLignesImport(): { ine: string; nom: string; prenom: string }[] {
+  function parserLignesImport(): { ine: string; nom: string; prenom: string; anneeAcademique?: string }[] {
     const lignesDeCellules = texteImport
       .split("\n")
       .map((ligne) => ligne.trim())
@@ -132,7 +144,9 @@ export function GroupeEtudiantsModal({
   }
 
   const lignesImport = parserLignesImport();
-  const lignesValides = lignesImport.filter((l) => l.ine && l.nom && l.prenom);
+  const lignesValides = lignesImport
+    .map((l) => ({ ...l, anneeAcademique: l.anneeAcademique || anneeAcademiqueLot.trim() }))
+    .filter((l) => l.ine && l.nom && l.prenom && l.anneeAcademique);
 
   async function lireFichier(fichier: File) {
     setErreurImport(null);
@@ -177,7 +191,7 @@ export function GroupeEtudiantsModal({
     }
     if (lignesValides.length < lignesImport.length) {
       setErreurImport(
-        `${lignesImport.length - lignesValides.length} ligne(s) incomplète(s) (INE, nom et prénom sont tous les trois obligatoires) — corrigez-les avant d'importer.`
+        `${lignesImport.length - lignesValides.length} ligne(s) incomplète(s) (INE, nom, prénom et année académique sont obligatoires — cette dernière via la colonne du fichier ou le champ "Année académique" ci-dessus) — corrigez-les avant d'importer.`
       );
       return;
     }
@@ -210,7 +224,37 @@ export function GroupeEtudiantsModal({
         : `${pluriel}.`
     );
     setTexteImport("");
+    setAnneeAcademiqueLot("");
     setTimeout(() => setConfirmation(null), 6000);
+  }
+
+  // FR-REF-10 : fichier modèle téléchargeable présentant les colonnes
+  // attendues pour l'import — chargé à la demande (comme la lecture d'un
+  // .xlsx plus haut), jamais au chargement initial de la page.
+  async function telechargerCanevas() {
+    setTelechargementCanevas(true);
+    try {
+      const ExcelJSModule = (await import("exceljs")).default;
+      const classeur = new ExcelJSModule.Workbook();
+      const feuille = classeur.addWorksheet("Étudiants");
+      feuille.columns = [
+        { header: "INE", key: "ine", width: 16 },
+        { header: "Nom", key: "nom", width: 20 },
+        { header: "Prénom", key: "prenom", width: 20 },
+        { header: "Année académique", key: "anneeAcademique", width: 18 },
+      ];
+      feuille.addRow({ ine: "20260501", nom: "Ouédraogo", prenom: "Salif", anneeAcademique: "2025-2026" });
+
+      const buffer = await classeur.xlsx.writeBuffer();
+      const url = URL.createObjectURL(new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+      const lien = document.createElement("a");
+      lien.href = url;
+      lien.download = "canevas-import-etudiants.xlsx";
+      lien.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setTelechargementCanevas(false);
+    }
   }
 
   return (
@@ -268,12 +312,35 @@ export function GroupeEtudiantsModal({
 
           {/* Import d'une liste */}
           <div>
-            <h3 className="mb-2 text-sm font-semibold text-text">Importer une liste d&apos;étudiants</h3>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold text-text">Importer une liste d&apos;étudiants</h3>
+              <button
+                onClick={telechargerCanevas}
+                disabled={telechargementCanevas}
+                className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-brand hover:underline disabled:opacity-50"
+              >
+                <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                Télécharger le canevas
+              </button>
+            </div>
             <p className="mb-2 text-xs text-text-muted">
               Déposez un fichier Excel (.xlsx) ou Markdown/CSV (.md, .csv, .txt), ou collez directement le
               texte ci-dessous — une ligne par étudiant : <code>INE, nom, prénom</code> (avec ou sans
               en-tête, tableau Markdown accepté).
             </p>
+
+            <div className="mb-2">
+              <label className="text-xs font-medium text-text">
+                Année académique <span className="text-text-subtle">(ex. 2025-2026 — appliquée à tout le lot, sauf si le fichier a déjà sa propre colonne)</span>
+              </label>
+              <input
+                type="text"
+                value={anneeAcademiqueLot}
+                onChange={(e) => setAnneeAcademiqueLot(e.target.value)}
+                placeholder="2025-2026"
+                className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
+              />
+            </div>
 
             <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border px-3 py-4 text-sm text-text-muted hover:border-brand hover:text-brand">
               <FileUp className="h-4 w-4" aria-hidden="true" />
