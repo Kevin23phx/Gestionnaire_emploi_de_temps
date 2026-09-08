@@ -1,12 +1,23 @@
 /**
- * Contrat de données Campus Manager — V2 multi-UFR.
+ * Contrat de données Campus Manager — V3, programme public.
  * Dérivé de 02_SRS_Campus_Manager.md et 03_Contrat_Invariants_Campus_Manager.md.
- * Ce fichier est la référence partagée avec le backend (NestJS) : toute évolution
- * doit être répercutée côté API pour que les deux équipes restent synchronisées.
+ * Ce fichier est la référence partagée avec le backend (Django/DRF,
+ * `backend_django/`) : toute évolution doit y être répercutée.
+ *
+ * [V3] Deux familles de types désormais, et il faut résister à la tentation
+ * de les fusionner : les types de GESTION (Creneau, Groupe, Salle...),
+ * qui circulent derrière une authentification, et les types PUBLICS
+ * (ProgrammePublic, SeancePublique), volontairement plus pauvres. La
+ * surface publique n'expose jamais un `Groupe` complet ni un `Creneau`
+ * complet — un effectif ou un identifiant d'étudiant n'a rien à faire sur
+ * Internet (INV-12/INT-10). Les garder séparés ici est le pendant, côté
+ * client, de la séparation des sérialiseurs côté serveur.
  */
 
-// RM-03 (V2) : un compte a exactement un rôle parmi ces 4.
-export type Role = "etudiant" | "enseignant" | "scolarite" | "admin";
+// RM-03 (V3) : un compte a exactement un rôle parmi ces 2. Les rôles
+// "etudiant" et "enseignant" ont été retirés le 2026-09-07 avec les comptes
+// correspondants — le programme se consulte sans compte.
+export type Role = "scolarite" | "admin";
 
 export interface Utilisateur {
   id: string;
@@ -22,11 +33,30 @@ export interface Utilisateur {
   enseignantId?: string;
 }
 
-// V2 multi-UFR : les 5 UFR réelles de l'UJKZ (SH, SDS, SVT, SEA, LAC).
+// [V3.2] Un ÉTABLISSEMENT de l'UJKZ : 5 UFR, 6 instituts (IBAM, ISSP,
+// IFOAD, ISSDH, IGEDD, IPERMIC) et 1 école doctorale (EDICC). La V2 avait
+// restreint le périmètre aux 5 UFR ; cette restriction est levée.
+//
+// Le type garde son nom historique `Ufr` — comme le modèle et la table
+// côté backend — parce que `ufrId` traverse tout le contrat d'API. Mais
+// tout ce que l'utilisateur LIT dit « établissement » : demander « votre
+// UFR » à un étudiant de l'IBAM n'aurait pas de sens.
+export type TypeEtablissement = "ufr" | "institut" | "ecole_doctorale";
+
 export interface Ufr {
   id: string;
   nom: string;
-  sigle: string;
+  sigle: string; // code court, minuscules — sert à scolarite.<sigle>
+  type: TypeEtablissement;
+  // "UFR/SH" pour une UFR, "IBAM" pour un institut. Composé côté serveur :
+  // la règle de préfixe dépend du type et ne doit exister qu'à un endroit.
+  sigleAffiche: string;
+  // [V3] FR-REF-16/17 : période académique EN COURS de cette UFR. Borne la
+  // navigation par semaine et la récurrence du flux calendrier. `null` tant
+  // que le Gestionnaire ne l'a pas renseignée.
+  periodeLibelle?: string | null;
+  periodeDebut?: string | null; // "AAAA-MM-JJ"
+  periodeFin?: string | null;
 }
 
 // Réponse de GET /api/ufrs — inclut le statut du compte Gestionnaire pour
@@ -35,39 +65,30 @@ export interface UfrAvecGestionnaire extends Ufr {
   gestionnaire: { identifiant: string; active: boolean } | null;
 }
 
+// [V3.2] FR-REF-20 : département officiel d'un établissement — ce que le
+// projet appelle « filière » côté groupe. Référentiel réel de l'UJKZ
+// (53 entrées), et non plus une liste déduite des groupes déjà saisis.
+export interface Departement {
+  id: string;
+  libelle: string;
+  ufrId: string;
+}
+
 export interface Groupe {
   id: string;
   nom: string; // ex. "L3 INFO - Groupe A"
   filiere: string;
   niveau: string;
-  // FR-REF-12 : année EN COURS de ce groupe précis (ex. "2025-2026") —
-  // distincte d'Etudiant.anneeAcademique (année d'inscription, immuable).
+  // FR-REF-12 : année EN COURS de ce groupe précis (ex. "2025-2026").
   // Une promotion (L1→L2) se fait en créant un nouveau Groupe pour la
   // nouvelle année, pas en modifiant celui-ci sur place.
   anneeAcademique: string;
   ufrId: string; // INT-07 : toujours rattaché à exactement une UFR
-  effectif: number; // dérivé du nombre d'Etudiant.groupeId === ce groupe (cf. Etudiant) — jamais saisi à la main une fois des étudiants rattachés
-}
-
-// Référentiel des étudiants — distinct de Utilisateur (qui ne porte que le
-// compte de connexion) pour la même raison qu'Enseignant en est distinct :
-// la scolarité doit pouvoir importer/rattacher un étudiant à un groupe avant
-// même que son compte existe. "groupeId" absent = étudiant connu du
-// référentiel mais pas encore affecté à un groupe (ex. juste importé).
-export interface Etudiant {
-  id: string;
-  ine: string; // Identifiant National de l'Étudiant — pas un "matricule" (retour utilisateur du 2026-08-18)
-  nom: string;
-  prenom: string;
-  filiere: string;
-  niveau: string;
-  // FR-REF-09 : année d'inscription (ex. "2025-2026") — sert au filtrage
-  // (FR-REF-11), pas à assouplir l'unicité de l'INE (FR-REF-08).
-  anneeAcademique: string;
-  // INV-09 : toujours rattaché à exactement une UFR ; changement réservé à
-  // l'Admin (FR-ADMIN-05, POST /etudiants/:id/transferer-ufr).
-  ufrId: string;
-  groupeId?: string;
+  // [V3.1] Nombre d'étudiants, SAISI par le gestionnaire. Était auparavant
+  // dérivé d'un référentiel nominatif d'étudiants, supprimé depuis : le
+  // système n'en consommait que le nombre, comparé à la capacité d'une
+  // salle (RM-02). N'est donc plus vérifiable — il vaut ce qui a été saisi.
+  effectif: number;
 }
 
 export interface Enseignant {
@@ -119,6 +140,18 @@ export interface Creneau {
   heureFin: string; // "10:00"
   statut: StatutCreneau;
   motif?: string; // obligatoire si modifie/annule (INT-03)
+  // [V3] INV-13 : numéro de révision, incrémenté à chaque écriture.
+  version: number;
+  // [V3] FR-EDT-07 : séances annulées à une date précise. Distinctes de
+  // `statut: "annule"`, qui retire le cours de toute la période (RM-10).
+  seancesAnnulees: SeanceAnnulee[];
+}
+
+// [V3] FR-EDT-07 / INV-14
+export interface SeanceAnnulee {
+  date: string; // "AAAA-MM-JJ"
+  motif: string;
+  annulePar: string;
 }
 
 // FR-CONF-05 : gravité bloquant ou avertissement
@@ -138,35 +171,72 @@ export interface ConflitDetecte {
   creneauxConcernes: string[]; // IDs de créneaux
 }
 
-export type TypeNotification = "modifie" | "annule" | "info";
+// ---------------------------------------------------------------------------
+// [V3] Types de la surface publique (FR-PUB-01→09)
+// ---------------------------------------------------------------------------
+// Délibérément plus pauvres que leurs équivalents de gestion : ce qui n'est
+// pas ici ne peut pas fuiter. Voir l'en-tête de ce fichier.
 
-export interface NotificationItem {
+// "annule_seance" : cette séance-ci est annulée, le cours a bien lieu les
+// autres semaines (INV-14). "annule" : le cours est retiré de toute la
+// période académique. Les confondre à l'affichage reviendrait à dire à
+// l'étudiant que son cours est supprimé alors que l'enseignant est
+// simplement absent un jour.
+export type StatutSeance = StatutCreneau | "annule_seance";
+
+export interface SeancePublique {
   id: string;
-  type: TypeNotification;
-  titre: string;
-  description: string;
-  dateHeure: string; // ISO 8601
-  lue: boolean;
+  date: string; // "AAAA-MM-JJ"
+  jour: Creneau["jour"];
+  heureDebut: string;
+  heureFin: string;
+  ue: { code: string | null; intitule: string; niveau: string };
+  enseignant: string; // "Prénom Nom" — jamais un objet identifiable
+  salle: { nom: string; batiment: string };
+  statut: StatutSeance;
+  motif: string | null;
 }
 
-// RM-04 : une demande a exactement 3 états possibles.
-export type StatutDemande = "en_attente" | "validee" | "refusee";
-export type TypeDemande = "absence" | "report" | "permutation";
+export interface ProgrammePublic {
+  groupe: {
+    id: string;
+    nom: string;
+    filiere: string;
+    niveau: string;
+    anneeAcademique: string;
+    ufr: Ufr;
+  };
+  semaine: {
+    lundi: string;
+    samedi: string;
+    periodeDebut: string | null;
+    periodeFin: string | null;
+    periodeLibelle: string | null;
+    horsPeriode: boolean;
+  };
+  seances: SeancePublique[];
+}
 
-export interface DemandeEnseignant {
+// Dernier étage de la cascade FR-PUB-02.
+export interface GroupePublic {
   id: string;
-  enseignant: Enseignant;
-  type: TypeDemande;
-  statut: StatutDemande;
-  creneauConcerneId: string;
-  creneauProposeId?: string | null; // report/permutation
-  motif: string;
-  // "report" : nouvelle plage proposée (jour/heure/salle) — le créneau
-  // cible n'existe pas encore avant validation par la scolarité.
-  jourPropose?: Creneau["jour"] | null;
-  heureDebutProposee?: string | null; // "HH:MM"
-  heureFinProposee?: string | null;
-  salleProposeeId?: string | null;
+  nom: string;
+  filiere: string;
+  niveau: string;
+  anneeAcademique: string;
+  nbCreneaux: number;
+}
+
+// FR-PUB-04 : ce qu'on garde dans le stockage local du visiteur. Assez pour
+// réafficher le favori sans appel réseau (mode hors-ligne, FR-PUB-09), et
+// rien de plus — aucune donnée personnelle n'est jamais stockée.
+export interface Favori {
+  groupeId: string;
+  nom: string;
+  filiere: string;
+  niveau: string;
+  ufrSigle: string;
+  ajouteLe: string; // ISO 8601
 }
 
 // FR-AUD-01/03 : journal d'audit, append-only (INV-04)

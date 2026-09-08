@@ -1,16 +1,34 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { X } from "lucide-react";
-import type { Groupe } from "@/lib/types";
+import type { Departement, Groupe } from "@/lib/types";
 import { apiFetch } from "@/lib/api";
+import { AUTRE, NIVEAUX, anneesAcademiques } from "@/lib/referentiel-options";
 
-// FR-REF-01 : référentiel des groupes/filières. Pas de champ "Effectif" ici
-// — un groupe naît vide (0 étudiant) et se peuple ensuite via
-// GroupeEtudiantsModal (import ou affectation), jamais par une estimation
-// tapée à la création (retour utilisateur du 2026-08-18 : ce nombre doit
-// refléter les étudiants réellement rattachés, cf. Groupe.effectif dans
-// types.ts).
+// [V3.1] FR-REF-12/13 — filière, niveau et année académique se
+// SÉLECTIONNENT au lieu de se saisir, et l'effectif est un simple nombre.
+//
+// Deux changements liés :
+//
+// 1. Les listes déroulantes évitent les variantes d'écriture d'une même
+//    filière (« Informatique » / « informatique » / « INFO »), qui
+//    apparaîtraient comme trois filières distinctes dans la cascade
+//    publique (FR-PUB-02).
+//
+//    [V3.2] Les filières viennent désormais du RÉFÉRENTIEL OFFICIEL des
+//    départements de l'UJKZ (53 entrées, GET /departements), et non plus
+//    des groupes déjà créés. La différence est de fond : une liste déduite
+//    des groupes ne peut que se dégrader — chaque faute de frappe y devient
+//    une filière de plus — alors qu'un référentiel s'enrichit. L'option
+//    « + Autre » subsiste et **enregistre** le nouveau département, qui
+//    sera proposé aux créations suivantes (FR-REF-21).
+//
+// 2. L'effectif est saisi directement. Il était auparavant dérivé du nombre
+//    d'étudiants importés — un travail de saisie considérable pour une
+//    valeur dont le système n'utilise que le nombre, comparé à la capacité
+//    d'une salle (RM-02). Contrepartie assumée : le système ne peut plus le
+//    vérifier, il vaut ce que le Gestionnaire a saisi.
 export function GroupeFormModal({
   onClose,
   onSave,
@@ -18,25 +36,76 @@ export function GroupeFormModal({
   onClose: () => void;
   onSave: (groupe: Groupe) => void;
 }) {
+  const annees = anneesAcademiques();
+
+  const [departements, setDepartements] = useState<Departement[] | null>(null);
   const [nom, setNom] = useState("");
   const [filiere, setFiliere] = useState("");
-  const [niveau, setNiveau] = useState("");
-  const [anneeAcademique, setAnneeAcademique] = useState("");
+  const [filiereLibre, setFiliereLibre] = useState("");
+  const [niveau, setNiveau] = useState<string>(NIVEAUX[0]);
+  // L'année en cours est au milieu de la liste (précédente, courante,
+  // suivante) : c'est le choix juste dans l'immense majorité des cas.
+  const [anneeAcademique, setAnneeAcademique] = useState(annees[1]);
+  const [effectif, setEffectif] = useState("");
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, setEnCours] = useState(false);
 
+  useEffect(() => {
+    let annule = false;
+    apiFetch("/departements")
+      .then((r) => r.json())
+      .then((data: { departements: Departement[] }) => {
+        if (annule) return;
+        setDepartements(data.departements);
+        // Si l'établissement n'a encore aucun département, on ouvre
+        // directement sur la saisie libre plutôt que sur une liste vide.
+        setFiliere(data.departements[0]?.libelle ?? AUTRE);
+      })
+      .catch(() => {
+        if (!annule) setDepartements([]);
+      });
+    return () => {
+      annule = true;
+    };
+  }, []);
+
+  const filiereRetenue = filiere === AUTRE ? filiereLibre.trim() : filiere;
+
   async function handleSubmit() {
-    if (!nom.trim() || !filiere.trim() || !niveau.trim() || !anneeAcademique.trim()) {
-      setErreur("Le nom, la filière, le niveau et l'année académique sont obligatoires.");
+    if (!nom.trim() || !filiereRetenue) {
+      setErreur("Le nom du groupe et la filière sont obligatoires.");
+      return;
+    }
+    const nombre = Number(effectif);
+    if (effectif !== "" && (!Number.isInteger(nombre) || nombre < 0)) {
+      setErreur("L'effectif doit être un nombre entier positif.");
       return;
     }
     setErreur(null);
     setEnCours(true);
 
+    // FR-REF-21 : une filière saisie librement rejoint le référentiel de
+    // l'établissement, pour être proposée aux créations suivantes. Un échec
+    // ici (doublon de casse, par exemple) ne doit pas empêcher la création
+    // du groupe lui-même — le libellé est de toute façon correct.
+    if (filiere === AUTRE && filiereRetenue) {
+      await apiFetch("/departements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ libelle: filiereRetenue }),
+      }).catch(() => {});
+    }
+
     const reponse = await apiFetch("/groupes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nom, filiere, niveau, anneeAcademique }),
+      body: JSON.stringify({
+        nom,
+        filiere: filiereRetenue,
+        niveau,
+        anneeAcademique,
+        effectif: effectif === "" ? 0 : nombre,
+      }),
     });
     const data = await reponse.json();
     setEnCours(false);
@@ -51,7 +120,7 @@ export function GroupeFormModal({
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-xl">
+      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-border bg-surface p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-bold text-text">Nouveau groupe</h2>
           <button onClick={onClose} className="rounded-lg p-1 hover:bg-surface-muted" aria-label="Fermer">
@@ -61,8 +130,11 @@ export function GroupeFormModal({
 
         <div className="flex flex-col gap-4">
           <div>
-            <label className="text-sm font-medium text-text">Nom du groupe</label>
+            <label htmlFor="groupe-nom" className="text-sm font-medium text-text">
+              Nom du groupe
+            </label>
             <input
+              id="groupe-nom"
               type="text"
               value={nom}
               onChange={(e) => setNom(e.target.value)}
@@ -72,39 +144,97 @@ export function GroupeFormModal({
           </div>
 
           <div>
-            <label className="text-sm font-medium text-text">Filière</label>
-            <input
-              type="text"
+            <label htmlFor="groupe-filiere" className="text-sm font-medium text-text">
+              Filière (département)
+            </label>
+            <select
+              id="groupe-filiere"
               value={filiere}
               onChange={(e) => setFiliere(e.target.value)}
-              placeholder="ex: Informatique"
-              className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
-            />
+              disabled={departements === null}
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm disabled:opacity-60"
+            >
+              {departements === null ? <option value="">Chargement...</option> : null}
+              {(departements ?? []).map((d) => (
+                <option key={d.id} value={d.libelle}>
+                  {d.libelle}
+                </option>
+              ))}
+              <option value={AUTRE}>+ Autre filière...</option>
+            </select>
+            {filiere === AUTRE ? (
+              <>
+                <input
+                  type="text"
+                  value={filiereLibre}
+                  onChange={(e) => setFiliereLibre(e.target.value)}
+                  placeholder="Nom de la nouvelle filière"
+                  className="mt-2 w-full rounded-lg border border-border px-3 py-2 text-sm"
+                />
+                <p className="mt-1 text-xs text-text-subtle">
+                  Elle sera ajoutée aux départements de votre établissement et proposée la prochaine fois.
+                </p>
+              </>
+            ) : (
+              <p className="mt-1 text-xs text-text-subtle">
+                Départements officiels de votre établissement.
+              </p>
+            )}
+          </div>
+
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label htmlFor="groupe-niveau" className="text-sm font-medium text-text">
+                Niveau
+              </label>
+              <select
+                id="groupe-niveau"
+                value={niveau}
+                onChange={(e) => setNiveau(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm"
+              >
+                {NIVEAUX.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex-1">
+              <label htmlFor="groupe-annee" className="text-sm font-medium text-text">
+                Année académique
+              </label>
+              <select
+                id="groupe-annee"
+                value={anneeAcademique}
+                onChange={(e) => setAnneeAcademique(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm"
+              >
+                {annees.map((a) => (
+                  <option key={a} value={a}>
+                    {a}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div>
-            <label className="text-sm font-medium text-text">Niveau</label>
+            <label htmlFor="groupe-effectif" className="text-sm font-medium text-text">
+              Nombre d&apos;étudiants
+            </label>
             <input
-              type="text"
-              value={niveau}
-              onChange={(e) => setNiveau(e.target.value)}
-              placeholder="ex: L1, L2, L3, M1, M2"
-              className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
-            />
-          </div>
-
-          <div>
-            <label className="text-sm font-medium text-text">Année académique</label>
-            <input
-              type="text"
-              value={anneeAcademique}
-              onChange={(e) => setAnneeAcademique(e.target.value)}
-              placeholder="ex: 2025-2026"
+              id="groupe-effectif"
+              type="number"
+              min={0}
+              value={effectif}
+              onChange={(e) => setEffectif(e.target.value)}
+              placeholder="ex: 120"
               className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
             />
             <p className="mt-1 text-xs text-text-subtle">
-              L&apos;année en cours de CE groupe — pour promouvoir une cohorte, créez un nouveau groupe pour la
-              nouvelle année/niveau puis déplacez-y les étudiants.
+              Sert à vous alerter quand une salle est trop petite pour le groupe. Modifiable à tout moment.
             </p>
           </div>
 

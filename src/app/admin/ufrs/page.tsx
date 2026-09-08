@@ -3,15 +3,22 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Eye, Plus, UserPlus } from "lucide-react";
-import type { UfrAvecGestionnaire } from "@/lib/types";
+import type { TypeEtablissement, UfrAvecGestionnaire } from "@/lib/types";
 import { Badge } from "@/components/ui/StatusBadge";
 import { apiFetch } from "@/lib/api";
 import { UfrFormModal } from "@/components/ufrs/UfrFormModal";
 import { GestionnaireFormModal } from "@/components/ufrs/GestionnaireFormModal";
 
-// FR-ADMIN-01/02 : seul écran où l'Admin agit réellement (création d'UFR et
-// de comptes Gestionnaire) — tout le reste de son espace est en lecture
-// seule (FR-ADMIN-04).
+// FR-ADMIN-01/02 : seul écran où l'Admin agit réellement (création
+// d'établissements et de comptes Gestionnaire) — tout le reste de son
+// espace est en lecture seule (FR-ADMIN-04).
+//
+// [V3.2] « Établissement » : 5 UFR, 6 instituts et 1 école doctorale.
+const TYPE_LABEL: Record<TypeEtablissement, string> = {
+  ufr: "UFR",
+  institut: "Institut",
+  ecole_doctorale: "École doctorale",
+};
 export default function UfrsAdminPage() {
   const [ufrs, setUfrs] = useState<UfrAvecGestionnaire[] | null>(null);
   const [modaleUfr, setModaleUfr] = useState(false);
@@ -34,38 +41,45 @@ export default function UfrsAdminPage() {
           className="flex items-center gap-2 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover"
         >
           <Plus className="h-4 w-4" aria-hidden="true" />
-          Nouvelle UFR
+          Nouvel établissement
         </button>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-border bg-surface">
-        <table className="w-full text-sm">
+      <div className="overflow-x-auto rounded-xl border border-border bg-surface">
+        <table className="w-full min-w-[640px] text-sm">
           <thead className="border-b border-border bg-surface-muted text-left text-xs font-semibold uppercase tracking-wide text-text-subtle">
             <tr>
-              <th className="px-4 py-3">UFR</th>
+              <th className="px-4 py-3">Établissement</th>
               <th className="px-4 py-3">Sigle</th>
+              <th className="px-4 py-3">Type</th>
               <th className="px-4 py-3">Gestionnaire</th>
+              {/* [V3] FR-ADMIN-03 : une UFR sans période académique publie
+                  dans l'agenda des étudiants des cours qui se répètent sans
+                  fin. C'est invisible depuis l'UFR elle-même — l'Admin, qui
+                  supervise, est le seul à pouvoir le remarquer. */}
+              <th className="px-4 py-3">Période académique</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
           <tbody>
             {ufrs === null ? (
               <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-text-muted">
+                <td colSpan={6} className="px-4 py-6 text-center text-text-muted">
                   Chargement...
                 </td>
               </tr>
             ) : ufrs.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-text-muted">
-                  Aucune UFR pour l&apos;instant.
+                <td colSpan={6} className="px-4 py-6 text-center text-text-muted">
+                  Aucun établissement pour l&apos;instant.
                 </td>
               </tr>
             ) : (
               ufrs.map((ufr) => (
                 <tr key={ufr.id} className="border-b border-border last:border-0">
                   <td className="px-4 py-3 font-medium text-text">{ufr.nom}</td>
-                  <td className="px-4 py-3 uppercase text-text-muted">{ufr.sigle}</td>
+                  <td className="px-4 py-3 font-medium text-text-muted">{ufr.sigleAffiche}</td>
+                  <td className="px-4 py-3 text-text-muted">{TYPE_LABEL[ufr.type]}</td>
                   <td className="px-4 py-3">
                     {ufr.gestionnaire ? (
                       <div className="flex items-center gap-2">
@@ -77,6 +91,15 @@ export default function UfrsAdminPage() {
                       </div>
                     ) : (
                       <span className="text-text-subtle">Aucun compte</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {ufr.periodeDebut && ufr.periodeFin ? (
+                      <span className="text-xs text-text-muted">
+                        {ufr.periodeDebut} → {ufr.periodeFin}
+                      </span>
+                    ) : (
+                      <Badge tone="warning" label="Non définie" />
                     )}
                   </td>
                   <td className="px-4 py-3 text-right">

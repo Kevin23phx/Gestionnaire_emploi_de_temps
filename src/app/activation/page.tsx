@@ -66,8 +66,8 @@ function ActivationForm() {
           />
           <h1 className="mt-4 text-xl font-bold text-text">Activation de votre compte</h1>
           <p className="mt-1 text-sm text-text-muted">
-            Votre compte a été créé par la scolarité de votre UFR. Définissez
-            votre mot de passe pour y accéder.
+            Votre compte de gestionnaire a été créé par l&apos;administrateur. Définissez votre mot de passe pour y
+            accéder.
           </p>
         </div>
 

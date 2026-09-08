@@ -4,12 +4,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  Bell,
   BookOpen,
   Building2,
   Calendar,
-  ClipboardCheck,
-  GraduationCap,
   HelpCircle,
   History,
   Landmark,
@@ -27,23 +24,18 @@ interface NavItem {
   icon: typeof Calendar;
 }
 
+// [V3] Deux rôles seulement. « Demandes » a disparu avec le circuit de
+// signalement enseignant (02_SRS §2.7) : l'enseignant téléphone désormais au
+// Gestionnaire, qui corrige directement le programme.
+// [V3.1] « Étudiants » a disparu avec le référentiel nominatif : l'effectif
+// d'un groupe est un nombre saisi dans la section Groupes.
 const NAV_ITEMS: Record<Role, NavItem[]> = {
-  etudiant: [
-    { href: "/etudiant", label: "Emploi du temps", icon: Calendar },
-    { href: "/etudiant/notifications", label: "Notifications", icon: Bell },
-  ],
-  enseignant: [
-    { href: "/enseignant", label: "Mon Planning", icon: Calendar },
-    { href: "/enseignant/demandes", label: "Mes demandes", icon: ClipboardCheck },
-  ],
   scolarite: [
     { href: "/scolarite", label: "Tableau de bord", icon: LayoutDashboard },
     { href: "/scolarite/planning", label: "Programmes", icon: Calendar },
     { href: "/scolarite/salles", label: "Salles", icon: Building2 },
     { href: "/scolarite/groupes", label: "Groupes", icon: Users },
-    { href: "/scolarite/etudiants", label: "Étudiants", icon: GraduationCap },
     { href: "/scolarite/cours", label: "Cours", icon: BookOpen },
-    { href: "/scolarite/demandes", label: "Demandes", icon: ClipboardCheck },
     { href: "/scolarite/audit", label: "Journal d'audit", icon: History },
   ],
   // FR-ADMIN-01/02/03 : l'Admin ne gère plus lui-même de référentiel/planning
@@ -51,7 +43,7 @@ const NAV_ITEMS: Record<Role, NavItem[]> = {
   // d'UFR/Gestionnaires et la supervision transverse en lecture.
   admin: [
     { href: "/admin", label: "Supervision", icon: LayoutDashboard },
-    { href: "/admin/ufrs", label: "UFR", icon: Landmark },
+    { href: "/admin/ufrs", label: "Établissements", icon: Landmark },
     { href: "/admin/audit", label: "Journal d'audit", icon: History },
   ],
 };

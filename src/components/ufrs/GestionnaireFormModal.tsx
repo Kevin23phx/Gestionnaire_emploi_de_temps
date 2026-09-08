@@ -26,6 +26,7 @@ export function GestionnaireFormModal({
   const [enCours, setEnCours] = useState(false);
   const [identifiantCree, setIdentifiantCree] = useState<string | null>(null);
   const [copie, setCopie] = useState(false);
+  const [erreurCopie, setErreurCopie] = useState(false);
 
   async function handleSubmit() {
     if (!nom.trim() || !prenom.trim()) {
@@ -52,10 +53,38 @@ export function GestionnaireFormModal({
     onCreated(data.identifiant);
   }
 
+  // navigator.clipboard n'existe que dans un contexte "sécurisé" (HTTPS, ou
+  // localhost) — absent en http:// sur une IP locale (ex. test depuis un
+  // téléphone sur le même Wi-Fi). Repli sur execCommand("copy"), qui lui
+  // fonctionne indépendamment de ce contexte malgré sa dépréciation.
   async function copierIdentifiant() {
     if (!identifiantCree) return;
-    await navigator.clipboard.writeText(identifiantCree);
-    setCopie(true);
+    setErreurCopie(false);
+
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(identifiantCree);
+        setCopie(true);
+        return;
+      } catch {
+        // essaie le repli ci-dessous plutôt que d'abandonner
+      }
+    }
+
+    const zoneTemporaire = document.createElement("textarea");
+    zoneTemporaire.value = identifiantCree;
+    zoneTemporaire.style.position = "fixed";
+    zoneTemporaire.style.opacity = "0";
+    document.body.appendChild(zoneTemporaire);
+    zoneTemporaire.select();
+    try {
+      document.execCommand("copy");
+      setCopie(true);
+    } catch {
+      setErreurCopie(true);
+    } finally {
+      document.body.removeChild(zoneTemporaire);
+    }
   }
 
   return (
@@ -84,6 +113,11 @@ export function GestionnaireFormModal({
                 {copie ? "Copié" : "Copier"}
               </button>
             </div>
+            {erreurCopie ? (
+              <p className="text-xs text-status-danger">
+                Copie automatique indisponible ici — sélectionnez le texte ci-dessus et copiez-le manuellement.
+              </p>
+            ) : null}
             <div className="mt-2 flex justify-end">
               <button
                 onClick={onClose}

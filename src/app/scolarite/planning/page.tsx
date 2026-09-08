@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarDays, Plus } from "lucide-react";
 import type { Creneau, Groupe } from "@/lib/types";
 import { NouveauProgrammeModal } from "@/components/planning/NouveauProgrammeModal";
+import { BarreFiltres } from "@/components/filtres/BarreFiltres";
 import { apiFetch } from "@/lib/api";
+import { correspond, useFiltresUrl, valeursDistinctes } from "@/lib/filtres";
 
 // Liste des programmes — un par groupe (décision de cadrage 2026-08-17,
 // FR-EDT-01 : un créneau appartient toujours à un groupe précis, on ne
@@ -15,6 +17,7 @@ export default function ListeProgrammesPage() {
   const [groupes, setGroupes] = useState<Groupe[] | null>(null);
   const [creneaux, setCreneaux] = useState<Creneau[] | null>(null);
   const [modalOuvert, setModalOuvert] = useState(false);
+  const { valeur, definir, reinitialiser, actifs } = useFiltresUrl();
 
   useEffect(() => {
     apiFetch("/groupes")
@@ -39,6 +42,24 @@ export default function ListeProgrammesPage() {
 
   const pretes = groupes !== null && creneaux !== null;
 
+  const tous = useMemo(() => groupes ?? [], [groupes]);
+  const filtres = useMemo(
+    () =>
+      tous.filter(
+        (g) =>
+          correspond(valeur("q"), g.nom, g.filiere) &&
+          (!valeur("filiere") || g.filiere === valeur("filiere")) &&
+          (!valeur("niveau") || g.niveau === valeur("niveau")) &&
+          (!valeur("annee") || g.anneeAcademique === valeur("annee")) &&
+          // Un programme encore vide est ce qu'un Gestionnaire cherche en
+          // priorité en début de semestre : « lesquels me reste-t-il à
+          // saisir ? ». Sans ce filtre, il faut ouvrir les cartes une à une.
+          (valeur("etat") !== "vide" || !(creneaux ?? []).some((c) => c.groupe.id === g.id)) &&
+          (valeur("etat") !== "rempli" || (creneaux ?? []).some((c) => c.groupe.id === g.id))
+      ),
+    [tous, creneaux, valeur]
+  );
+
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
@@ -58,16 +79,34 @@ export default function ListeProgrammesPage() {
         </button>
       </div>
 
+      {pretes ? (
+        <BarreFiltres
+          placeholder="Rechercher un programme par groupe ou filière..."
+          filtres={[
+            { cle: "filiere", label: "Filière", options: valeursDistinctes(tous, (g) => g.filiere) },
+            { cle: "niveau", label: "Niveau", options: valeursDistinctes(tous, (g) => g.niveau) },
+            { cle: "annee", label: "Année", options: valeursDistinctes(tous, (g) => g.anneeAcademique) },
+            { cle: "etat", label: "État", options: ["rempli", "vide"] },
+          ]}
+          valeur={valeur}
+          definir={definir}
+          reinitialiser={reinitialiser}
+          actifs={actifs}
+          resultats={filtres.length}
+          total={tous.length}
+        />
+      ) : null}
+
       {!pretes ? (
         <p className="px-4 py-6 text-center text-sm text-text-muted">Chargement...</p>
-      ) : groupes.length === 0 ? (
+      ) : filtres.length === 0 && tous.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border bg-surface p-8 text-center text-sm text-text-muted">
           Aucun groupe dans le référentiel pour l&apos;instant — créez-en un via
           &laquo;&nbsp;Nouveau programme&nbsp;&raquo; ou depuis la section Groupes.
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {groupes.map((groupe) => {
+          {filtres.map((groupe) => {
             const nbCreneaux = creneaux.filter((c) => c.groupe.id === groupe.id).length;
             return (
               <button
@@ -88,6 +127,11 @@ export default function ListeProgrammesPage() {
               </button>
             );
           })}
+          {filtres.length === 0 ? (
+            <p className="col-span-full rounded-xl border border-dashed border-border bg-surface p-8 text-center text-sm text-text-muted">
+              Aucun programme ne correspond à ces filtres.
+            </p>
+          ) : null}
         </div>
       )}
 

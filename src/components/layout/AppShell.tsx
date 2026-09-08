@@ -7,9 +7,10 @@ import type { Role } from "@/lib/types";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { OfflineBanner } from "@/components/layout/OfflineBanner";
 
+// [V3] Deux rôles : les espaces Étudiant et Enseignant ont disparu avec
+// leurs comptes — la consultation se fait à la racine du site, sans
+// connexion (FR-PUB-01).
 const ROLE_LABEL: Record<Role, string> = {
-  etudiant: "Espace Étudiant",
-  enseignant: "Espace Enseignant",
   scolarite: "Portail Scolarité",
   admin: "Espace Admin",
 };

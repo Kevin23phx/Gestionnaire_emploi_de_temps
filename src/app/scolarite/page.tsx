@@ -2,6 +2,7 @@ import Link from "next/link";
 import { apiFetchServer } from "@/lib/api-server";
 import type { DashboardStats } from "@/lib/types";
 import { AuditApercu } from "@/components/audit/AuditApercu";
+import { PeriodeAcademiqueCarte } from "@/components/ufrs/PeriodeAcademiqueCarte";
 
 const STATS_VIDES: DashboardStats = {
   tauxOccupationSalles: 0,
@@ -17,6 +18,13 @@ export default async function TableauDeBordScolaritePage() {
   return (
     <div>
       <h1 className="mb-6 text-xl font-bold text-text">Tableau de Bord Administratif</h1>
+
+      {/* [V3] FR-REF-16 : placée en tête, et non dans un écran de réglages,
+          parce qu'une période non définie dégrade silencieusement ce que les
+          étudiants reçoivent dans leur agenda. */}
+      <div className="mb-6">
+        <PeriodeAcademiqueCarte />
+      </div>
 
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
         <div className="rounded-xl border border-border bg-surface p-4">

@@ -4,20 +4,21 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import type { Creneau, Etudiant, Groupe, Salle, UfrAvecGestionnaire, UniteEnseignement } from "@/lib/types";
+import type { Creneau, Groupe, Salle, UfrAvecGestionnaire, UniteEnseignement } from "@/lib/types";
 import { apiFetch } from "@/lib/api";
 
-type Onglet = "groupes" | "salles" | "cours" | "etudiants" | "planning";
+// [V3.1] L'onglet « Étudiants » a disparu avec le référentiel nominatif :
+// l'effectif d'un groupe est un nombre, visible dans l'onglet Groupes.
+type Onglet = "groupes" | "salles" | "cours" | "planning";
 
 const ONGLETS: { id: Onglet; label: string }[] = [
   { id: "groupes", label: "Groupes" },
   { id: "salles", label: "Salles" },
   { id: "cours", label: "Cours" },
-  { id: "etudiants", label: "Étudiants" },
   { id: "planning", label: "Planning" },
 ];
 
-// FR-ADMIN-06 : l'Admin supervise le détail d'une UFR précise — pas
+// FR-ADMIN-06 : l'Admin supervise le détail d'un établissement précis — pas
 // seulement des compteurs agrégés (/admin, FR-ADMIN-03) ni le journal
 // d'audit seul (/admin/audit). Tout est en lecture seule (FR-ADMIN-04) :
 // aucune action de création/modification ici, uniquement des tableaux.
@@ -28,7 +29,6 @@ export default function UfrDetailAdminPage() {
   const [groupes, setGroupes] = useState<Groupe[] | null>(null);
   const [salles, setSalles] = useState<Salle[] | null>(null);
   const [cours, setCours] = useState<UniteEnseignement[] | null>(null);
-  const [etudiants, setEtudiants] = useState<Etudiant[] | null>(null);
   const [creneaux, setCreneaux] = useState<Creneau[] | null>(null);
 
   useEffect(() => {
@@ -38,7 +38,6 @@ export default function UfrDetailAdminPage() {
     apiFetch(`/groupes?ufrId=${id}`).then((r) => r.json()).then((data) => setGroupes(data.groupes));
     apiFetch(`/salles?ufrId=${id}`).then((r) => r.json()).then((data) => setSalles(data.salles));
     apiFetch(`/cours?ufrId=${id}`).then((r) => r.json()).then((data) => setCours(data.cours));
-    apiFetch(`/etudiants?ufrId=${id}`).then((r) => r.json()).then((data) => setEtudiants(data.etudiants));
     apiFetch(`/creneaux?ufrId=${id}`).then((r) => r.json()).then((data) => setCreneaux(data.creneaux));
   }, [id]);
 
@@ -46,10 +45,10 @@ export default function UfrDetailAdminPage() {
     <div>
       <Link href="/admin/ufrs" className="mb-4 flex items-center gap-1.5 text-sm font-medium text-brand hover:underline">
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        Retour aux UFR
+        Retour aux établissements
       </Link>
 
-      <h1 className="mb-1 text-xl font-bold text-text">{ufr?.nom ?? "UFR"}</h1>
+      <h1 className="mb-1 text-xl font-bold text-text">{ufr?.nom ?? "Établissement"}</h1>
       <p className="mb-6 text-sm text-text-muted">
         Gestionnaire :{" "}
         {ufr?.gestionnaire ? (
@@ -99,14 +98,6 @@ export default function UfrDetailAdminPage() {
         />
       ) : null}
 
-      {onglet === "etudiants" ? (
-        <TableGeneric
-          donnees={etudiants}
-          colonnes={["INE", "Nom", "Prénom", "Filière", "Niveau", "Année académique"]}
-          lignes={(etudiants ?? []).map((e) => [e.ine, e.nom, e.prenom, e.filiere, e.niveau, e.anneeAcademique])}
-        />
-      ) : null}
-
       {onglet === "planning" ? (
         <TableGeneric
           donnees={creneaux}
@@ -153,7 +144,7 @@ function TableGeneric({ donnees, colonnes, lignes }: { donnees: unknown[] | null
       {donnees === null ? (
         <p className="px-4 py-6 text-center text-sm text-text-muted">Chargement...</p>
       ) : lignes.length === 0 ? (
-        <p className="px-4 py-6 text-center text-sm text-text-muted">Aucune donnée pour cette UFR.</p>
+        <p className="px-4 py-6 text-center text-sm text-text-muted">Aucune donnée pour cet établissement.</p>
       ) : null}
     </div>
   );

@@ -14,7 +14,11 @@ export function AuditApercu() {
   useEffect(() => {
     apiFetch("/audit")
       .then((r) => r.json())
-      .then((data) => setEntries(data.entries.slice(-5).reverse()));
+      // L'API renvoie déjà les entrées de la plus récente à la plus
+      // ancienne : prendre les 5 PREMIÈRES. L'ancien `slice(-5).reverse()`
+      // affichait en réalité les 5 plus VIEILLES sous le titre « dernières
+      // entrées » — l'ordre de l'API avait changé sans que cet appel suive.
+      .then((data) => setEntries(data.entries.slice(0, 5)));
   }, []);
 
   if (!entries) {

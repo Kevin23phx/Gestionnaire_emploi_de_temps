@@ -1,5 +1,16 @@
 # Handoff Backend — Fonctionnalités ajoutées côté frontend
 
+> **[V3] Document historique (2026-09-07).** Ce fichier a été écrit pour un
+> coéquipier qui tenait alors le backend NestJS. Depuis, le backend a été
+> réécrit en Django (`backend_django/`, 2026-08-28) et est repris en propre,
+> puis la V3 « programme public » (2026-09-07) a retiré les rôles Étudiant
+> et Enseignant ainsi que le circuit de demandes. Plusieurs sections
+> ci-dessous décrivent donc des écrans qui n'existent plus. Il est conservé
+> pour la traçabilité des décisions, pas comme référence de contrat : les
+> documents d'ingénierie numérotés (`01_PRD_...` → `05_UML_C4_...`) et
+> `backend_django/README.md` font foi.
+
+
 Ce document résume les fonctionnalités ajoutées ou modifiées côté frontend
 depuis la dernière prise de contact, pour que le backend sache exactement quoi
 reproduire/prévoir côté API. Il complète (ne remplace pas) les documents

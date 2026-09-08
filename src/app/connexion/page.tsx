@@ -36,8 +36,8 @@ export default function ConnexionPage() {
       setErreur(data.erreur ?? "Une erreur est survenue.");
       // FR-AUTH-03 : ce compte existe mais n'a jamais été activé — le
       // signaler explicitement plutôt que de laisser l'utilisateur deviner
-      // pourquoi "Se connecter" échoue (retour utilisateur : import d'un
-      // étudiant, tentative de connexion directe, aucune indication).
+      // pourquoi "Se connecter" échoue. [V3] Ne concerne plus que les
+      // comptes Gestionnaire créés par l'Admin.
       setCompteNonActive(data.codeErreur === "compte_non_active");
       return;
     }
@@ -60,7 +60,7 @@ export default function ConnexionPage() {
             className="h-14 w-14 object-contain"
           />
           <h1 className="mt-4 text-xl font-bold text-text">Campus Manager</h1>
-          <p className="text-sm text-text-muted">Portail d&apos;authentification</p>
+          <p className="text-sm text-text-muted">Espace gestionnaire</p>
         </div>
 
         <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-4">
@@ -138,10 +138,18 @@ export default function ConnexionPage() {
           </Link>
         </p>
 
+        {/* [V3] Cet écran ne concerne plus que les gestionnaires de
+            scolarité et l'administrateur : un étudiant ou un enseignant qui
+            y arriverait par habitude doit être renvoyé vers la consultation
+            publique plutôt que de chercher un compte qui n'existe pas. */}
         <div className="mt-6 border-t border-border pt-4 text-center text-xs text-text-subtle">
-          Besoin d&apos;assistance ?
+          Vous cherchez votre emploi du temps ?{" "}
+          <Link href="/" className="font-medium text-brand hover:underline">
+            Il est consultable sans compte
+          </Link>
+          .
           <br />
-          Contactez le support technique de l&apos;université.
+          <span className="mt-2 block">Besoin d&apos;assistance ? Contactez le support technique de l&apos;université.</span>
         </div>
       </div>
     </div>

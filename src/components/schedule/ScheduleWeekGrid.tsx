@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import type { Creneau, StatutCreneau } from "@/lib/types";
+import type { Creneau, StatutSeance } from "@/lib/types";
 import { PAUSES } from "@/lib/pauses";
+import { datesDeLaSemaine, libelleDateCourte } from "@/lib/semaines";
 
 const JOURS: { key: Creneau["jour"]; label: string; court: string }[] = [
   { key: "lundi", label: "Lundi", court: "Lun" },
@@ -31,17 +32,36 @@ const HAUTEUR_QUART = 18; // 4 × 18px = 72px/heure, inchangé visuellement
 
 // Fond plein (pas de dilution en opacité) + accent de couleur à gauche : plus
 // lisible que l'ancien traitement translucide, qui écrasait le contraste du texte.
-const CARTE_CLASSES: Record<StatutCreneau, string> = {
+const CARTE_CLASSES: Record<StatutSeance, string> = {
   normal: "border-l-4 border-status-info bg-status-info-bg",
   modifie: "border-l-4 border-status-warning bg-status-warning-bg",
   annule: "border-l-4 border-status-danger bg-status-danger-bg",
+  // [V3] Même famille de couleur que "annule", mais un libellé distinct :
+  // l'annulation d'UNE séance et celle du cours entier se ressemblent
+  // visuellement (les deux sont des absences) sans jamais se confondre au
+  // texte (RM-10).
+  annule_seance: "border-l-4 border-status-danger bg-status-danger-bg",
 };
 
-const LEGENDE: { statut: StatutCreneau; label: string; dot: string }[] = [
+const LEGENDE: { statut: StatutSeance; label: string; dot: string }[] = [
   { statut: "normal", label: "Normal", dot: "bg-status-info" },
   { statut: "modifie", label: "Modifié", dot: "bg-status-warning" },
   { statut: "annule", label: "Annulé", dot: "bg-status-danger" },
 ];
+
+// [V3] FR-EDT-08 : le statut EFFECTIF d'un créneau à une date donnée. Sans
+// cette distinction, une séance annulée pour le seul mardi 15 s'afficherait
+// exactement comme un cours normal, et l'annulation existerait en base sans
+// être perceptible à l'écran.
+function statutALaDate(creneau: Creneau, date: string | undefined): StatutSeance {
+  if (date && creneau.seancesAnnulees.some((sa) => sa.date === date)) return "annule_seance";
+  return creneau.statut;
+}
+
+function motifALaDate(creneau: Creneau, date: string | undefined): string | undefined {
+  const annulation = date ? creneau.seancesAnnulees.find((sa) => sa.date === date) : undefined;
+  return annulation?.motif ?? creneau.motif;
+}
 
 function heureVersQuart(heure: string): number {
   const [h, m] = heure.split(":").map(Number);
@@ -97,22 +117,30 @@ function CarteCreneau({
   creneau,
   variante,
   onCreneauClick,
+  date,
 }: {
   creneau: Creneau;
   variante: VarianteMeta;
   onCreneauClick?: (creneau: Creneau) => void;
+  date?: string;
 }) {
+  const statut = statutALaDate(creneau, date);
+  const motif = motifALaDate(creneau, date);
+  const barre = statut === "annule" || statut === "annule_seance";
   return (
     <div
       onClick={onCreneauClick ? () => onCreneauClick(creneau) : undefined}
-      className={`flex min-w-0 flex-1 flex-col gap-0.5 overflow-hidden rounded-md p-2 shadow-sm ${CARTE_CLASSES[creneau.statut]} ${
+      className={`flex min-w-0 flex-1 flex-col gap-0.5 overflow-hidden rounded-md p-2 shadow-sm ${CARTE_CLASSES[statut]} ${
         onCreneauClick ? "cursor-pointer hover:shadow-md hover:brightness-95" : ""
       }`}
     >
+      {statut === "annule_seance" ? (
+        <span className="w-fit rounded-full bg-surface px-1.5 text-[10px] font-semibold text-status-danger">
+          Séance annulée
+        </span>
+      ) : null}
       <p
-        className={`truncate text-sm font-semibold leading-tight text-text ${
-          creneau.statut === "annule" ? "line-through opacity-70" : ""
-        }`}
+        className={`truncate text-sm font-semibold leading-tight text-text ${barre ? "line-through opacity-70" : ""}`}
         title={creneau.ue.intitule}
       >
         {creneau.ue.intitule}
@@ -123,9 +151,9 @@ function CarteCreneau({
       <p className="truncate text-xs text-text-muted" title={formaterMeta(creneau, variante)}>
         {formaterMeta(creneau, variante)}
       </p>
-      {creneau.motif ? (
-        <p className="truncate text-xs italic text-text-subtle" title={creneau.motif}>
-          Motif : {creneau.motif}
+      {motif ? (
+        <p className="truncate text-xs italic text-text-subtle" title={motif}>
+          Motif : {motif}
         </p>
       ) : null}
     </div>
@@ -141,15 +169,28 @@ function CarteCreneauAgenda({
   creneau,
   variante,
   onCreneauClick,
+  date,
 }: {
   creneau: Creneau;
   variante: VarianteMeta;
   onCreneauClick?: (creneau: Creneau) => void;
+  date?: string;
 }) {
+  const statut = statutALaDate(creneau, date);
+  const motif = motifALaDate(creneau, date);
+  const barre = statut === "annule" || statut === "annule_seance";
+  const badge =
+    statut === "modifie"
+      ? "Modifié"
+      : statut === "annule_seance"
+        ? "Séance annulée"
+        : statut === "annule"
+          ? "Annulé"
+          : null;
   return (
     <div
       onClick={onCreneauClick ? () => onCreneauClick(creneau) : undefined}
-      className={`flex flex-col gap-1 rounded-lg p-3 shadow-sm ${CARTE_CLASSES[creneau.statut]} ${
+      className={`flex flex-col gap-1 rounded-lg p-3 shadow-sm ${CARTE_CLASSES[statut]} ${
         onCreneauClick ? "cursor-pointer active:brightness-95" : ""
       }`}
     >
@@ -157,21 +198,15 @@ function CarteCreneauAgenda({
         <p className="text-sm font-semibold text-text-muted">
           {creneau.heureDebut}–{creneau.heureFin}
         </p>
-        {creneau.statut !== "normal" ? (
-          <span className="rounded-full bg-surface px-2 py-0.5 text-[11px] font-medium text-text-muted">
-            {creneau.statut === "modifie" ? "Modifié" : "Annulé"}
-          </span>
+        {badge ? (
+          <span className="rounded-full bg-surface px-2 py-0.5 text-[11px] font-medium text-text-muted">{badge}</span>
         ) : null}
       </div>
-      <p
-        className={`text-base font-semibold leading-tight text-text ${
-          creneau.statut === "annule" ? "line-through opacity-70" : ""
-        }`}
-      >
+      <p className={`text-base font-semibold leading-tight text-text ${barre ? "line-through opacity-70" : ""}`}>
         {creneau.ue.intitule}
       </p>
       <p className="text-sm text-text-muted">{formaterMeta(creneau, variante)}</p>
-      {creneau.motif ? <p className="text-sm italic text-text-subtle">Motif : {creneau.motif}</p> : null}
+      {motif ? <p className="text-sm italic text-text-subtle">Motif : {motif}</p> : null}
     </div>
   );
 }
@@ -189,12 +224,21 @@ export function ScheduleWeekGrid({
   creneaux,
   variante,
   onCreneauClick,
+  lundi,
 }: {
   creneaux: Creneau[];
   variante: VarianteMeta;
   onCreneauClick?: (creneau: Creneau) => void;
+  // [V3] FR-EDT-09 : quand une semaine est fournie, la grille est datée —
+  // les en-têtes portent la date et chaque créneau est affiché avec son
+  // statut À CETTE DATE (une séance annulée le 15 ne l'est pas le 22).
+  // Optionnel pour que le composant reste utilisable en grille « type ».
+  lundi?: string;
 }) {
   const [jourAgenda, setJourAgenda] = useState<Creneau["jour"]>(JOUR_ACTUEL);
+  const dates = lundi ? datesDeLaSemaine(lundi) : undefined;
+  const dateDe = (jour: Creneau["jour"]) =>
+    dates?.[JOURS.findIndex((j) => j.key === jour)];
   const creneauxAgenda = creneaux
     .filter((c) => c.jour === jourAgenda)
     .sort((a, b) => (a.heureDebut < b.heureDebut ? -1 : 1));
@@ -248,6 +292,7 @@ export function ScheduleWeekGrid({
                 creneau={creneau}
                 variante={variante}
                 onCreneauClick={onCreneauClick}
+                date={dateDe(creneau.jour)}
               />
             ))
           )}
@@ -277,6 +322,11 @@ export function ScheduleWeekGrid({
               style={{ gridColumn: i + 2, gridRow: 1 }}
             >
               {jour.label}
+              {dates ? (
+                <span className="block text-[11px] font-normal normal-case text-text-subtle">
+                  {libelleDateCourte(dates[i])}
+                </span>
+              ) : null}
             </div>
           ))}
 
@@ -351,6 +401,7 @@ export function ScheduleWeekGrid({
                       creneau={creneau}
                       variante={variante}
                       onCreneauClick={onCreneauClick}
+                      date={dates?.[dIndex]}
                     />
                   ))}
                 </div>

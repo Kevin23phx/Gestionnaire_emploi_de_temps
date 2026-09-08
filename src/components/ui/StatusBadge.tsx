@@ -1,4 +1,4 @@
-import type { GraviteConflit, StatutCreneau, StatutDemande } from "@/lib/types";
+import type { GraviteConflit, StatutCreneau } from "@/lib/types";
 
 type Tone = "info" | "warning" | "danger" | "success" | "neutral";
 
@@ -24,22 +24,14 @@ export function Badge({ tone, label }: { tone: Tone; label: string }) {
 const CRENEAU_STATUT: Record<StatutCreneau, { label: string; tone: Tone }> = {
   normal: { label: "Normal", tone: "info" },
   modifie: { label: "Modifié", tone: "warning" },
-  annule: { label: "Annulé", tone: "danger" },
+  // [V3] « Annulé » tout court désigne l'annulation de TOUTE la période
+  // (FR-EDT-03). L'annulation d'une séance datée (FR-EDT-07) a son propre
+  // libellé là où elle s'affiche, pour que RM-10 reste lisible à l'écran.
+  annule: { label: "Annulé (toute la période)", tone: "danger" },
 };
 
 export function CreneauStatusBadge({ statut }: { statut: StatutCreneau }) {
   const { label, tone } = CRENEAU_STATUT[statut];
-  return <Badge tone={tone} label={label} />;
-}
-
-const DEMANDE_STATUT: Record<StatutDemande, { label: string; tone: Tone }> = {
-  en_attente: { label: "En attente", tone: "warning" },
-  validee: { label: "Validée", tone: "success" },
-  refusee: { label: "Refusée", tone: "danger" },
-};
-
-export function DemandeStatusBadge({ statut }: { statut: StatutDemande }) {
-  const { label, tone } = DEMANDE_STATUT[statut];
   return <Badge tone={tone} label={label} />;
 }
 

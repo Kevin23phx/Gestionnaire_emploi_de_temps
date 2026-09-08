@@ -1,25 +1,33 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Bell, Calendar, WifiOff } from "lucide-react";
+import { CalendarPlus, Star, WifiOff } from "lucide-react";
+import { ListeFavoris } from "@/components/public/ListeFavoris";
+import { RechercheProgramme } from "@/components/public/RechercheProgramme";
+
+// [V3] La racine du site n'est plus une page de présentation avec un bouton
+// « Se connecter » : c'est la recherche de programme elle-même (FR-PUB-01/02).
+// C'est le cœur du changement demandé par les responsables UJKZ — l'étudiant
+// vient chercher son emploi du temps, il n'a pas de compte et n'en aura pas.
+// L'accès gestionnaire devient un lien discret, en haut à droite : il
+// concerne une dizaine de personnes, contre des dizaines de milliers de
+// visiteurs.
 
 const ATOUTS = [
   {
-    icon: Calendar,
-    titre: "Consultez votre planning en temps réel",
-    description:
-      "L'emploi du temps de votre groupe ou de vos cours, toujours à jour, où que vous soyez.",
+    icon: Star,
+    titre: "Gardez votre programme",
+    description: "Mettez-le en favori : il vous attend sur cette page, sans avoir à refaire la recherche.",
   },
   {
-    icon: Bell,
-    titre: "Recevez une notification instantanée",
+    icon: CalendarPlus,
+    titre: "Recevez-le dans votre agenda",
     description:
-      "Annulation, changement de salle ou d'horaire : vous êtes informé en moins d'une minute.",
+      "Ajoutez-le une fois à l'agenda de votre téléphone : annulations et changements de salle y arrivent ensuite tout seuls.",
   },
   {
     icon: WifiOff,
-    titre: "Accédez-y même hors-ligne",
-    description:
-      "La dernière version connue de votre emploi du temps reste consultable sans connexion.",
+    titre: "Consultable hors connexion",
+    description: "Le dernier programme consulté reste lisible même sans réseau.",
   },
 ];
 
@@ -40,33 +48,28 @@ export default function AccueilPage() {
         </div>
         <Link
           href="/connexion"
-          className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-hover"
+          className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-text-muted transition-colors hover:bg-surface-muted hover:text-text"
         >
-          Se connecter
+          Espace gestionnaire
         </Link>
       </header>
 
-      <main className="flex flex-1 flex-col items-center px-6 py-16 text-center">
-        <h1 className="max-w-2xl text-3xl font-bold text-text sm:text-4xl">
-          La gestion en temps réel de votre emploi du temps universitaire
+      <main className="flex flex-1 flex-col items-center px-6 py-12">
+        <h1 className="max-w-2xl text-center text-2xl font-bold text-text sm:text-3xl">
+          Trouvez votre emploi du temps
         </h1>
-        <p className="mt-4 max-w-xl text-text-muted">
-          Un outil dédié à l&apos;Université Joseph Ki-Zerbo pour éliminer les
-          conflits de salle et les changements mal communiqués.
+        <p className="mt-3 max-w-xl text-center text-text-muted">
+          Tous les programmes de l&apos;Université Joseph Ki-Zerbo, à jour, sans compte à créer.
         </p>
-        <Link
-          href="/connexion"
-          className="mt-8 rounded-lg bg-brand px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-brand-hover"
-        >
-          Se connecter
-        </Link>
+
+        <div className="mt-10 flex w-full flex-col items-center">
+          <ListeFavoris />
+          <RechercheProgramme />
+        </div>
 
         <div className="mt-16 grid max-w-4xl gap-6 sm:grid-cols-3">
           {ATOUTS.map(({ icon: Icon, titre, description }) => (
-            <div
-              key={titre}
-              className="flex flex-col items-center rounded-xl border border-border bg-surface p-6 text-left"
-            >
+            <div key={titre} className="flex flex-col rounded-xl border border-border bg-surface p-6 text-left">
               <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-brand-light text-brand">
                 <Icon className="h-5 w-5" aria-hidden="true" />
               </div>
@@ -79,8 +82,8 @@ export default function AccueilPage() {
 
       <footer className="border-t border-border bg-surface px-6 py-6 text-center text-xs text-text-subtle">
         <p>
-          Campus Manager est un outil complémentaire à CampusFaso, dédié à la
-          gestion des emplois du temps de l&apos;UJKZ.
+          Campus Manager est un outil complémentaire à CampusFaso, dédié à la gestion des emplois du temps de
+          l&apos;UJKZ.
         </p>
         <div className="mt-2 flex justify-center gap-4">
           <Link href="/aide" className="hover:text-brand hover:underline">

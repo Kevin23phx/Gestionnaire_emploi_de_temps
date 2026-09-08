@@ -9,7 +9,7 @@ const STATS_VIDES: DashboardStats = {
   coursAnnulesPeriode: 0,
 };
 
-// FR-ADMIN-03 : vue de supervision transverse à toutes les UFR, en lecture
+// FR-ADMIN-03 : vue de supervision transverse à tous les établissements, en lecture
 // seule — l'Admin n'a ici aucune action de gestion du référentiel/planning
 // (déléguée aux Gestionnaires), seulement un aperçu global + le statut des
 // comptes Gestionnaire (cf. /admin/ufrs pour la gestion elle-même).
@@ -24,7 +24,7 @@ export default async function SupervisionAdminPage() {
 
   return (
     <div>
-      <h1 className="mb-6 text-xl font-bold text-text">Supervision — toutes les UFR</h1>
+      <h1 className="mb-6 text-xl font-bold text-text">Supervision — tous les établissements</h1>
 
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
         <div className="rounded-xl border border-border bg-surface p-4">
@@ -53,16 +53,16 @@ export default async function SupervisionAdminPage() {
 
       <div className="rounded-xl border border-border bg-surface">
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <h2 className="text-sm font-semibold text-text">UFR ({ufrs.length})</h2>
+          <h2 className="text-sm font-semibold text-text">Établissements ({ufrs.length})</h2>
           <Link href="/admin/ufrs" className="text-sm font-medium text-brand hover:underline">
-            Gérer les UFR
+            Gérer les établissements
           </Link>
         </div>
         <div className="flex flex-wrap gap-4 px-4 py-3 text-sm">
           <span className="text-status-success">{gestionnairesActifs} gestionnaire(s) actif(s)</span>
           <span className="text-status-warning">{gestionnairesEnAttente} en attente d&apos;activation</span>
           {sansGestionnaire > 0 ? (
-            <span className="text-status-danger">{sansGestionnaire} UFR sans gestionnaire</span>
+            <span className="text-status-danger">{sansGestionnaire} établissement(s) sans gestionnaire</span>
           ) : null}
         </div>
       </div>

@@ -6,7 +6,7 @@ import { AuditTable } from "@/components/audit/AuditTable";
 import { apiFetch } from "@/lib/api";
 
 // FR-ADMIN-03 : même table que /scolarite/audit, mais transverse à toutes
-// les UFR — le filtrage par UFR reste appliqué côté API selon le rôle
+// les établissements — le filtrage par établissement reste appliqué côté API selon le rôle
 // authentifié (AuditService.list), jamais reconstruit ici.
 export default function JournalAuditAdminPage() {
   const [entries, setEntries] = useState<AuditEntry[] | null>(null);
@@ -19,7 +19,7 @@ export default function JournalAuditAdminPage() {
 
   return (
     <div>
-      <h1 className="mb-6 text-xl font-bold text-text">Journal d&apos;audit — toutes les UFR</h1>
+      <h1 className="mb-6 text-xl font-bold text-text">Journal d&apos;audit — tous les établissements</h1>
       <div className="rounded-xl border border-border bg-surface">
         {entries ? (
           <AuditTable entries={entries} />

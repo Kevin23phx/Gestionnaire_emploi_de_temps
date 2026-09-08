@@ -12,6 +12,7 @@ import type {
 import { detecterConflits } from "@/lib/conflict-detection";
 import { decouperSelonPauses } from "@/lib/pauses";
 import { normaliser } from "@/lib/recherche";
+import { correspond } from "@/lib/filtres";
 import { ConflitGraviteBadge } from "@/components/ui/StatusBadge";
 import { apiFetch } from "@/lib/api";
 
@@ -79,7 +80,15 @@ export function CreneauFormModal({
   const [ueIntituleLibre, setUeIntituleLibre] = useState("");
   const [ueRecherche, setUeRecherche] = useState("");
   const [enseignantId, setEnseignantId] = useState(creneau?.enseignant.id ?? enseignants[0]?.id ?? "");
-  const [nouvelEnseignant, setNouvelEnseignant] = useState({ nom: "", prenom: "", identifiant: "" });
+  // [V3] Plus d'identifiant : créer un enseignant crée une FICHE de
+  // référentiel, plus un compte de connexion (FR-REF-04 révisée).
+  const [nouvelEnseignant, setNouvelEnseignant] = useState({ nom: "", prenom: "" });
+  // [V3] FR-FILT-04 : « être sûr que la salle/l'enseignant est bien
+  // enregistré » — c'est ICI que la question se pose vraiment, au moment de
+  // construire le créneau, pas dans l'écran de référentiel qu'il faudrait
+  // aller ouvrir dans un autre onglet.
+  const [salleRecherche, setSalleRecherche] = useState("");
+  const [enseignantRecherche, setEnseignantRecherche] = useState("");
   const [salleId, setSalleId] = useState(creneau?.salle.id ?? salles[0]?.id ?? "");
   const [jours, setJours] = useState<Set<Creneau["jour"]>>(new Set([creneau?.jour ?? "lundi"]));
   const [heureDebut, setHeureDebut] = useState(creneau?.heureDebut ?? "08:00");
@@ -102,6 +111,20 @@ export function CreneauFormModal({
   const salleChoisie = salles.find((s) => s.id === salleId);
   const optionsHeureFin = OPTIONS_HEURE.filter((h) => h > heureDebut);
   const ueSelectionnee = ueId !== NOUVELLE_UE ? unitesEnseignement.find((u) => u.id === ueId) : undefined;
+  const enseignantSelectionne =
+    enseignantId !== NOUVEL_ENSEIGNANT ? enseignants.find((e) => e.id === enseignantId) : undefined;
+
+  // Même traitement que pour les cours : une UFR compte des dizaines de
+  // salles et d'enseignants, et un `<select>` brut oblige à les faire défiler
+  // à l'aveugle.
+  const sallesFiltrees = useMemo(
+    () => salles.filter((s) => correspond(salleRecherche, s.nom, s.batiment)),
+    [salles, salleRecherche]
+  );
+  const enseignantsFiltres = useMemo(
+    () => enseignants.filter((e) => correspond(enseignantRecherche, e.nom, e.prenom)),
+    [enseignants, enseignantRecherche]
+  );
 
   // Un UFR compte des centaines de cours : filtrer par code ou intitulé
   // plutôt que défiler une longue liste (retour utilisateur du 2026-08-18).
@@ -160,6 +183,12 @@ export function CreneauFormModal({
           heureDebut: segment.heureDebut,
           heureFin: segment.heureFin,
           statut: creneau?.statut ?? "normal",
+          // [V3] Aperçu local pour le calcul de conflits en direct : la
+          // révision n'a de sens qu'une fois enregistrée côté serveur, et
+          // une annulation datée ne se saisit pas dans ce formulaire (elle
+          // se pose sur un créneau qui existe déjà, FR-EDT-07).
+          version: creneau?.version ?? 0,
+          seancesAnnulees: creneau?.seancesAnnulees ?? [],
         });
         i++;
       }
@@ -196,7 +225,7 @@ export function CreneauFormModal({
   const derogationManquante = conflits.length > 0 && !motifDerogation.trim();
   const nouvelEnseignantIncomplet =
     enseignantId === NOUVEL_ENSEIGNANT &&
-    (!nouvelEnseignant.nom.trim() || !nouvelEnseignant.prenom.trim() || !nouvelEnseignant.identifiant.trim());
+    (!nouvelEnseignant.nom.trim() || !nouvelEnseignant.prenom.trim());
   const nouvelleUeIncomplete = ueId === NOUVELLE_UE && !ueIntituleLibre.trim();
 
   const peutEnregistrer =
@@ -227,7 +256,7 @@ export function CreneauFormModal({
     if (creneauxApercu.length === 0) return "Complétez les informations du cours avant d'enregistrer.";
     if (heureFin <= heureDebut) return "L'heure de fin doit être après l'heure de début.";
     if (nouvelleUeIncomplete) return "Précisez l'intitulé du nouveau cours.";
-    if (nouvelEnseignantIncomplet) return "Complétez le nom, le prénom et l'identifiant du nouvel enseignant.";
+    if (nouvelEnseignantIncomplet) return "Complétez le nom et le prénom du nouvel enseignant.";
     if (motifManquant) return "Le motif de la modification est obligatoire (champ ci-dessous).";
     if (derogationManquante)
       return "Un motif de dérogation est obligatoire : ce créneau est encore en conflit (champ ci-dessous).";
@@ -265,7 +294,7 @@ export function CreneauFormModal({
     });
     const data = await reponse.json();
     if (!reponse.ok) {
-      setErreur(data.erreur ?? "Impossible de créer le compte enseignant.");
+      setErreur(data.erreur ?? "Impossible d'enregistrer cet enseignant.");
       return null;
     }
     onEnseignantCree(data.enseignant);
@@ -390,26 +419,66 @@ export function CreneauFormModal({
             ) : null}
           </div>
 
-          {/* Enseignant */}
+          {/* Enseignant — liste recherchable (FR-FILT-04) */}
           <div>
             <label className="text-sm font-medium text-text">Enseignant</label>
-            <select
-              value={enseignantId}
-              onChange={(e) => setEnseignantId(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
-            >
-              {enseignants.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.prenom} {e.nom}
-                </option>
-              ))}
-              <option value={NOUVEL_ENSEIGNANT}>+ Nouvel enseignant</option>
-            </select>
+            {enseignantSelectionne ? (
+              <p className="mt-1 text-xs text-text-muted">
+                Sélectionné :{" "}
+                <span className="font-medium text-text">
+                  {enseignantSelectionne.prenom} {enseignantSelectionne.nom}
+                </span>
+              </p>
+            ) : null}
+            <div className="relative mt-1">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-subtle"
+                aria-hidden="true"
+              />
+              <input
+                type="text"
+                value={enseignantRecherche}
+                onChange={(e) => setEnseignantRecherche(e.target.value)}
+                placeholder="Rechercher un enseignant par nom..."
+                className="w-full rounded-lg border border-border py-2 pl-9 pr-3 text-sm"
+              />
+            </div>
+            <div className="mt-2 max-h-40 overflow-y-auto rounded-lg border border-border">
+              {enseignantsFiltres.length === 0 ? (
+                // Le dire explicitement plutôt que d'afficher une liste vide :
+                // c'est la réponse à la question « est-ce qu'il existe déjà ? ».
+                <p className="px-3 py-2 text-sm text-text-muted">
+                  Aucun enseignant ne correspond à « {enseignantRecherche} ».
+                </p>
+              ) : (
+                enseignantsFiltres.map((e) => (
+                  <button
+                    key={e.id}
+                    type="button"
+                    onClick={() => setEnseignantId(e.id)}
+                    className={`block w-full border-b border-border px-3 py-2 text-left text-sm last:border-b-0 hover:bg-surface-muted ${
+                      enseignantId === e.id ? "bg-brand/10 font-medium text-brand" : "text-text"
+                    }`}
+                  >
+                    {e.prenom} {e.nom}
+                  </button>
+                ))
+              )}
+              <button
+                type="button"
+                onClick={() => setEnseignantId(NOUVEL_ENSEIGNANT)}
+                className={`block w-full px-3 py-2 text-left text-sm hover:bg-surface-muted ${
+                  enseignantId === NOUVEL_ENSEIGNANT ? "bg-brand/10 font-medium text-brand" : "text-text-muted"
+                }`}
+              >
+                + Nouvel enseignant
+              </button>
+            </div>
             {enseignantId === NOUVEL_ENSEIGNANT ? (
               <div className="mt-2 flex flex-col gap-2 rounded-lg border border-border bg-surface-muted p-3">
                 <p className="text-xs text-text-muted">
-                  Le compte sera créé sans mot de passe : l&apos;enseignant l&apos;activera
-                  lui-même sur l&apos;écran d&apos;activation avec l&apos;identifiant ci-dessous.
+                  Enregistre une fiche dans le référentiel. L&apos;enseignant n&apos;a pas de compte : il consulte le
+                  programme public comme tout le monde.
                 </p>
                 <input
                   type="text"
@@ -425,13 +494,6 @@ export function CreneauFormModal({
                   onChange={(e) => setNouvelEnseignant((v) => ({ ...v, prenom: e.target.value }))}
                   className="rounded-lg border border-border px-3 py-2 text-sm"
                 />
-                <input
-                  type="text"
-                  placeholder="Identifiant (matricule ou email)"
-                  value={nouvelEnseignant.identifiant}
-                  onChange={(e) => setNouvelEnseignant((v) => ({ ...v, identifiant: e.target.value }))}
-                  className="rounded-lg border border-border px-3 py-2 text-sm"
-                />
               </div>
             ) : null}
           </div>
@@ -444,20 +506,62 @@ export function CreneauFormModal({
             </p>
           </div>
 
-          {/* Salle */}
+          {/* Salle — liste recherchable (FR-FILT-04) */}
           <div>
             <label className="text-sm font-medium text-text">Salle</label>
-            <select
-              value={salleId}
-              onChange={(e) => setSalleId(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
-            >
-              {salles.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.nom} — {s.capacite} places
-                </option>
-              ))}
-            </select>
+            {salleChoisie ? (
+              <p className="mt-1 text-xs text-text-muted">
+                Sélectionnée :{" "}
+                <span className="font-medium text-text">
+                  {salleChoisie.nom} — {salleChoisie.capacite} places
+                </span>
+                {groupeChoisi && groupeChoisi.effectif > salleChoisie.capacite ? (
+                  // RM-02 : le moteur de conflits le signalera de toute
+                  // façon, mais le dire ici évite au Gestionnaire d'aller
+                  // jusqu'à l'enregistrement pour l'apprendre.
+                  <span className="ml-1 font-medium text-status-warning">
+                    (capacité insuffisante : {groupeChoisi.effectif} étudiants)
+                  </span>
+                ) : null}
+              </p>
+            ) : null}
+            <div className="relative mt-1">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-subtle"
+                aria-hidden="true"
+              />
+              <input
+                type="text"
+                value={salleRecherche}
+                onChange={(e) => setSalleRecherche(e.target.value)}
+                placeholder="Rechercher une salle par nom ou bâtiment..."
+                className="w-full rounded-lg border border-border py-2 pl-9 pr-3 text-sm"
+              />
+            </div>
+            <div className="mt-2 max-h-40 overflow-y-auto rounded-lg border border-border">
+              {sallesFiltrees.length === 0 ? (
+                <p className="px-3 py-2 text-sm text-text-muted">
+                  Aucune salle ne correspond à « {salleRecherche} ». Vérifiez qu&apos;elle est bien enregistrée dans
+                  la section Salles.
+                </p>
+              ) : (
+                sallesFiltrees.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setSalleId(s.id)}
+                    className={`flex w-full items-center justify-between gap-2 border-b border-border px-3 py-2 text-left text-sm last:border-b-0 hover:bg-surface-muted ${
+                      salleId === s.id ? "bg-brand/10 font-medium text-brand" : "text-text"
+                    }`}
+                  >
+                    <span>
+                      {s.nom} <span className="text-text-subtle">· {s.batiment}</span>
+                    </span>
+                    <span className="shrink-0 text-xs text-text-subtle">{s.capacite} places</span>
+                  </button>
+                ))
+              )}
+            </div>
           </div>
 
           {/* Jours */}
