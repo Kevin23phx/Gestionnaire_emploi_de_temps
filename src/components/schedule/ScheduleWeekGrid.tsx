@@ -36,11 +36,6 @@ const CARTE_CLASSES: Record<StatutSeance, string> = {
   normal: "border-l-4 border-status-info bg-status-info-bg",
   modifie: "border-l-4 border-status-warning bg-status-warning-bg",
   annule: "border-l-4 border-status-danger bg-status-danger-bg",
-  // [V3] Même famille de couleur que "annule", mais un libellé distinct :
-  // l'annulation d'UNE séance et celle du cours entier se ressemblent
-  // visuellement (les deux sont des absences) sans jamais se confondre au
-  // texte (RM-10).
-  annule_seance: "border-l-4 border-status-danger bg-status-danger-bg",
 };
 
 const LEGENDE: { statut: StatutSeance; label: string; dot: string }[] = [
@@ -49,19 +44,9 @@ const LEGENDE: { statut: StatutSeance; label: string; dot: string }[] = [
   { statut: "annule", label: "Annulé", dot: "bg-status-danger" },
 ];
 
-// [V3] FR-EDT-08 : le statut EFFECTIF d'un créneau à une date donnée. Sans
-// cette distinction, une séance annulée pour le seul mardi 15 s'afficherait
-// exactement comme un cours normal, et l'annulation existerait en base sans
-// être perceptible à l'écran.
-function statutALaDate(creneau: Creneau, date: string | undefined): StatutSeance {
-  if (date && creneau.seancesAnnulees.some((sa) => sa.date === date)) return "annule_seance";
-  return creneau.statut;
-}
-
-function motifALaDate(creneau: Creneau, date: string | undefined): string | undefined {
-  const annulation = date ? creneau.seancesAnnulees.find((sa) => sa.date === date) : undefined;
-  return annulation?.motif ?? creneau.motif;
-}
+// [V4] Le statut d'un créneau est simplement le sien : il porte sa propre
+// date, l'annuler n'annule que cette séance-là. La distinction
+// « séance annulée » / « cours annulé » de la V3 n'a plus d'objet.
 
 function heureVersQuart(heure: string): number {
   const [h, m] = heure.split(":").map(Number);
@@ -113,48 +98,95 @@ function grouperChevauchements(creneauxJour: Creneau[]): Creneau[][] {
   return groupes;
 }
 
+// La carte s'adapte à la HAUTEUR dont elle dispose, exprimée en quarts
+// d'heure. Sans ça, une séance de 45 min (3 quarts = 54 px) tentait
+// d'afficher les mêmes quatre lignes qu'une séance de 2 h : le contenu
+// débordait et se retrouvait rogné, l'intitulé réduit à un liseré illisible
+// (constaté à l'usage sur les créneaux de 15h15–16h00).
+//
+// Trois densités plutôt qu'une hauteur de grille plus grande : agrandir la
+// grille aurait repoussé le problème d'un cran — il serait revenu sur les
+// séances de 30 min — tout en forçant à faire défiler une journée qui tenait
+// jusqu'ici d'un seul regard.
 function CarteCreneau({
   creneau,
   variante,
   onCreneauClick,
-  date,
+  quarts,
 }: {
   creneau: Creneau;
   variante: VarianteMeta;
   onCreneauClick?: (creneau: Creneau) => void;
-  date?: string;
+  // Durée disponible, en quarts d'heure (1 quart = 18 px).
+  quarts: number;
 }) {
-  const statut = statutALaDate(creneau, date);
-  const motif = motifALaDate(creneau, date);
-  const barre = statut === "annule" || statut === "annule_seance";
+  const statut = creneau.statut;
+  const motif = creneau.motif;
+  const barre = statut === "annule";
+
+  // Seuils calés sur la place réellement disponible (1 quart = 18 px, moins
+  // la marge du conteneur), pas sur une intuition : à 1 h pile, la version
+  // complète réclamait 69 px pour 64 px offerts — elle débordait de 5 px,
+  // assez pour rogner la dernière ligne sans que ce soit flagrant.
+  //
+  //   ≤ 15 min : intitulé seul, au plus serré
+  //   ≤ 30 min : intitulé seul
+  //   ≤ 1 h    : intitulé + horaire · salle
+  //   au-delà  : tout
+  const minuscule = quarts <= 1;
+  const tresCompact = quarts <= 2;
+  const compact = quarts <= 4;
+
+  const meta = formaterMeta(creneau, variante);
+  // L'infobulle porte TOUT ce que la carte a dû retirer : rien n'est
+  // définitivement perdu, seulement remis au survol.
+  const resume = `${creneau.ue.intitule}\n${creneau.heureDebut}–${creneau.heureFin}\n${meta}${
+    motif ? `\nMotif : ${motif}` : ""
+  }`;
+
   return (
     <div
       onClick={onCreneauClick ? () => onCreneauClick(creneau) : undefined}
-      className={`flex min-w-0 flex-1 flex-col gap-0.5 overflow-hidden rounded-md p-2 shadow-sm ${CARTE_CLASSES[statut]} ${
+      title={resume}
+      className={`flex min-w-0 flex-1 flex-col overflow-hidden rounded-md shadow-sm ${
+        minuscule
+          ? "gap-0 px-1 py-0"
+          : tresCompact
+            ? "gap-0 px-1.5 py-0.5"
+            : compact
+              ? "gap-0 px-2 py-1"
+              : "gap-0.5 p-2"
+      } ${CARTE_CLASSES[statut]} ${
         onCreneauClick ? "cursor-pointer hover:shadow-md hover:brightness-95" : ""
       }`}
     >
-      {statut === "annule_seance" ? (
-        <span className="w-fit rounded-full bg-surface px-1.5 text-[10px] font-semibold text-status-danger">
-          Séance annulée
-        </span>
-      ) : null}
       <p
-        className={`truncate text-sm font-semibold leading-tight text-text ${barre ? "line-through opacity-70" : ""}`}
-        title={creneau.ue.intitule}
+        className={`truncate font-semibold text-text ${
+          minuscule
+            ? "text-[10px] leading-none"
+            : tresCompact
+              ? "text-[11px] leading-tight"
+              : compact
+                ? "text-xs leading-tight"
+                : "text-sm leading-tight"
+        } ${barre ? "line-through opacity-70" : ""}`}
       >
         {creneau.ue.intitule}
       </p>
-      <p className="text-xs font-medium text-text-muted">
-        {creneau.heureDebut}–{creneau.heureFin}
-      </p>
-      <p className="truncate text-xs text-text-muted" title={formaterMeta(creneau, variante)}>
-        {formaterMeta(creneau, variante)}
-      </p>
-      {motif ? (
-        <p className="truncate text-xs italic text-text-subtle" title={motif}>
-          Motif : {motif}
+
+      {!tresCompact ? (
+        <p className={`truncate font-medium leading-tight text-text-muted ${compact ? "text-[10px]" : "text-xs"}`}>
+          {creneau.heureDebut}–{creneau.heureFin}
+          {/* En version serrée, la salle se glisse à la suite de l'horaire
+              plutôt que de réclamer une ligne à elle seule. */}
+          {compact ? ` · ${meta}` : ""}
         </p>
+      ) : null}
+
+      {!compact ? <p className="truncate text-xs text-text-muted">{meta}</p> : null}
+
+      {!compact && motif ? (
+        <p className="truncate text-xs italic text-text-subtle">Motif : {motif}</p>
       ) : null}
     </div>
   );
@@ -169,24 +201,20 @@ function CarteCreneauAgenda({
   creneau,
   variante,
   onCreneauClick,
-  date,
 }: {
   creneau: Creneau;
   variante: VarianteMeta;
   onCreneauClick?: (creneau: Creneau) => void;
-  date?: string;
 }) {
-  const statut = statutALaDate(creneau, date);
-  const motif = motifALaDate(creneau, date);
-  const barre = statut === "annule" || statut === "annule_seance";
+  const statut = creneau.statut;
+  const motif = creneau.motif;
+  const barre = statut === "annule";
   const badge =
     statut === "modifie"
       ? "Modifié"
-      : statut === "annule_seance"
-        ? "Séance annulée"
-        : statut === "annule"
-          ? "Annulé"
-          : null;
+      : statut === "annule"
+        ? "Annulé"
+        : null;
   return (
     <div
       onClick={onCreneauClick ? () => onCreneauClick(creneau) : undefined}
@@ -237,8 +265,6 @@ export function ScheduleWeekGrid({
 }) {
   const [jourAgenda, setJourAgenda] = useState<Creneau["jour"]>(JOUR_ACTUEL);
   const dates = lundi ? datesDeLaSemaine(lundi) : undefined;
-  const dateDe = (jour: Creneau["jour"]) =>
-    dates?.[JOURS.findIndex((j) => j.key === jour)];
   const creneauxAgenda = creneaux
     .filter((c) => c.jour === jourAgenda)
     .sort((a, b) => (a.heureDebut < b.heureDebut ? -1 : 1));
@@ -272,7 +298,20 @@ export function ScheduleWeekGrid({
                   : "bg-surface-muted text-text-muted hover:text-text"
               }`}
             >
-              {jour.court}
+              <span className="block leading-tight">{jour.court}</span>
+              {/* [V4] La date sous le jour : chaque semaine ayant son propre
+                  programme, « Lun » seul ne dit plus de quel lundi il
+                  s'agit — l'information manquait précisément là où
+                  l'écran est le plus petit. */}
+              {dates ? (
+                <span
+                  className={`block text-[10px] font-normal leading-tight ${
+                    jourAgenda === jour.key ? "text-white/80" : "text-text-subtle"
+                  }`}
+                >
+                  {libelleDateCourte(dates[JOURS.findIndex((j) => j.key === jour.key)])}
+                </span>
+              ) : null}
               {joursAvecCours.has(jour.key) && jourAgenda !== jour.key ? (
                 <span
                   className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-brand"
@@ -292,7 +331,6 @@ export function ScheduleWeekGrid({
                 creneau={creneau}
                 variante={variante}
                 onCreneauClick={onCreneauClick}
-                date={dateDe(creneau.jour)}
               />
             ))
           )}
@@ -301,15 +339,18 @@ export function ScheduleWeekGrid({
 
       {/* Grille semaine (tablette / bureau) */}
       <div className="hidden overflow-x-auto md:block">
-        {/* minmax(96px, 1fr) plutôt qu'un min-w fixe sur tout le conteneur :
+        {/* minmax(112px, 1fr) plutôt qu'un min-w fixe sur tout le conteneur :
             chaque jour ne descend jamais sous une largeur lisible, mais le
-            défilement horizontal ne se déclenche que si l'écran est
-            vraiment trop étroit pour ça (~630px), pas dès qu'il est
-            simplement plus petit qu'un chiffre choisi au hasard. */}
+            défilement horizontal ne se déclenche que si l'écran est vraiment
+            trop étroit pour ça, pas dès qu'il est simplement plus petit
+            qu'un chiffre choisi au hasard.
+            [V4] Relevé de 96 à 112 px : sur tablette, 96 px tronquaient
+            « Anglais avancé » dès le deuxième mot, et la salle disparaissait
+            entièrement derrière une ellipse. */}
         <div
           className="grid w-full"
           style={{
-            gridTemplateColumns: `56px repeat(${JOURS.length}, minmax(96px, 1fr))`,
+            gridTemplateColumns: `56px repeat(${JOURS.length}, minmax(112px, 1fr))`,
             gridTemplateRows: `auto repeat(${NB_QUARTS}, ${HAUTEUR_QUART}px)`,
           }}
         >
@@ -392,7 +433,9 @@ export function ScheduleWeekGrid({
               return (
                 <div
                   key={cle}
-                  className="relative z-10 m-1 flex gap-1"
+                  // Marge réduite sous 30 min : 4 px de chaque côté sur une
+                  // case de 18 px, c'est presque la moitié de la hauteur.
+                  className={`relative z-10 flex gap-1 ${ligneFin - ligneDebut <= 2 ? "m-0.5" : "m-1"}`}
                   style={{ gridColumn: dIndex + 2, gridRow: `${ligneDebut} / ${ligneFin}` }}
                 >
                   {groupe.map((creneau) => (
@@ -401,7 +444,7 @@ export function ScheduleWeekGrid({
                       creneau={creneau}
                       variante={variante}
                       onCreneauClick={onCreneauClick}
-                      date={dates?.[dIndex]}
+                      quarts={heureVersQuart(creneau.heureFin) - heureVersQuart(creneau.heureDebut)}
                     />
                   ))}
                 </div>

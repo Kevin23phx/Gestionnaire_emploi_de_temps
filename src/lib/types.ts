@@ -51,12 +51,6 @@ export interface Ufr {
   // "UFR/SH" pour une UFR, "IBAM" pour un institut. Composé côté serveur :
   // la règle de préfixe dépend du type et ne doit exister qu'à un endroit.
   sigleAffiche: string;
-  // [V3] FR-REF-16/17 : période académique EN COURS de cette UFR. Borne la
-  // navigation par semaine et la récurrence du flux calendrier. `null` tant
-  // que le Gestionnaire ne l'a pas renseignée.
-  periodeLibelle?: string | null;
-  periodeDebut?: string | null; // "AAAA-MM-JJ"
-  periodeFin?: string | null;
 }
 
 // Réponse de GET /api/ufrs — inclut le statut du compte Gestionnaire pour
@@ -124,6 +118,12 @@ export interface UniteEnseignement {
   // à côté de l'intitulé.
   niveau: string;
   ufrId: string;
+  // [V3.3] Départements qui suivent ce cours. Plusieurs = cours mutualisé
+  // (tronc commun, UE transversale) ; zéro = pas encore rattaché, ce que
+  // l'écran signale. Toujours renvoyé avec le cours : c'est la réponse à
+  // « qui suit ce cours ? », elle n'a d'intérêt qu'à l'endroit où on le
+  // cherche.
+  departements: Departement[];
 }
 
 // Statut visuel appliqué de façon identique sur toutes les vues (étudiant/enseignant/scolarité)
@@ -135,6 +135,11 @@ export interface Creneau {
   enseignant: Enseignant;
   groupe: Groupe;
   salle: Salle;
+  // [V4] La DATE réelle de la séance. Le programme de l'UJKZ est publié
+  // semaine par semaine et change d'une semaine à l'autre : un créneau vaut
+  // pour cette date-là et pour elle seule. `jour` en est déduit côté
+  // serveur, pour l'affichage — il n'est jamais saisi ni stocké.
+  date: string; // "AAAA-MM-JJ"
   jour: "lundi" | "mardi" | "mercredi" | "jeudi" | "vendredi" | "samedi";
   heureDebut: string; // "08:00"
   heureFin: string; // "10:00"
@@ -142,16 +147,6 @@ export interface Creneau {
   motif?: string; // obligatoire si modifie/annule (INT-03)
   // [V3] INV-13 : numéro de révision, incrémenté à chaque écriture.
   version: number;
-  // [V3] FR-EDT-07 : séances annulées à une date précise. Distinctes de
-  // `statut: "annule"`, qui retire le cours de toute la période (RM-10).
-  seancesAnnulees: SeanceAnnulee[];
-}
-
-// [V3] FR-EDT-07 / INV-14
-export interface SeanceAnnulee {
-  date: string; // "AAAA-MM-JJ"
-  motif: string;
-  annulePar: string;
 }
 
 // FR-CONF-05 : gravité bloquant ou avertissement
@@ -177,12 +172,9 @@ export interface ConflitDetecte {
 // Délibérément plus pauvres que leurs équivalents de gestion : ce qui n'est
 // pas ici ne peut pas fuiter. Voir l'en-tête de ce fichier.
 
-// "annule_seance" : cette séance-ci est annulée, le cours a bien lieu les
-// autres semaines (INV-14). "annule" : le cours est retiré de toute la
-// période académique. Les confondre à l'affichage reviendrait à dire à
-// l'étudiant que son cours est supprimé alors que l'enseignant est
-// simplement absent un jour.
-export type StatutSeance = StatutCreneau | "annule_seance";
+// [V4] Plus de distinction « séance » / « période » : un créneau EST une
+// séance datée, l'annuler n'annule que celle-là.
+export type StatutSeance = StatutCreneau;
 
 export interface SeancePublique {
   id: string;
@@ -209,10 +201,9 @@ export interface ProgrammePublic {
   semaine: {
     lundi: string;
     samedi: string;
-    periodeDebut: string | null;
-    periodeFin: string | null;
-    periodeLibelle: string | null;
-    horsPeriode: boolean;
+    // [V4] Le programme est publié semaine par semaine : `false` signifie
+    // « pas encore publié », pas « erreur ».
+    publie: boolean;
   };
   seances: SeancePublique[];
 }
@@ -235,6 +226,10 @@ export interface Favori {
   nom: string;
   filiere: string;
   niveau: string;
+  // Optionnel : les favoris enregistrés avant [V3.3] ne l'ont pas, et un
+  // favori déjà posé sur l'appareil d'un visiteur ne doit pas devenir
+  // illisible parce qu'on a ajouté un champ.
+  anneeAcademique?: string;
   ufrSigle: string;
   ajouteLe: string; // ISO 8601
 }

@@ -3,6 +3,8 @@
 **Étape 3 de la chaîne méthodologique** — répond à : *que promet le système, que garantit-il toujours, qu'interdit-il absolument ?*
 Ce contrat est indépendant de la technologie choisie (PostgreSQL, NestJS, PWA) — il doit rester vrai même si la stack change entièrement.
 
+> **`[V4]` Révision du 2026-09-09 — une séance porte une date.** Le programme est publié semaine par semaine (cf. `01_PRD`, note V4) : la récurrence hebdomadaire disparaît, et avec elle **INV-14** (« une annulation datée laisse le créneau actif ailleurs ») et **INT-11**, tous deux sans objet — un créneau EST une séance datée. **INV-02 (anti-double-réservation) est reconstruit sur la date** : la garantie physique en base portait sur le jour de semaine, elle porterait sinon sur une colonne supprimée. Sa portée change en conséquence, et c'est voulu : deux cours dans la même salle un lundi ne s'excluent plus que s'il s'agit du même lundi.
+
 > **`[V3.2]` Révision du 2026-09-07 — le périmètre passe à 12 établissements.** Sur réception du référentiel officiel de l'UJKZ : 5 UFR, 6 instituts, 1 école doctorale, 53 départements (cf. `01_PRD`, note V3.2). **Aucun invariant n'est affaibli** : INV-10 (un Gestionnaire = un établissement) et INT-07 (cloisonnement) s'appliquent identiquement à un institut. Deux invariants s'ajoutent (INV-17, INV-18) pour ce que le nouveau référentiel des départements doit garantir. Le mot « UFR » employé dans les invariants ci-dessous se lit désormais « établissement ».
 
 > **`[V3.1]` Révision du 2026-09-07 (même journée) — une garantie devient une déclaration.** Le référentiel nominatif des étudiants est supprimé (cf. `01_PRD`, note V3.1) : l'effectif d'un groupe est désormais **saisi**. C'est le seul endroit du contrat où le Système cesse de *garantir* pour se contenter d'*enregistrer ce qu'on lui dit*. INV-09 et INT-08 sont retirés ; RM-02 (conflit de capacité) survit dans son énoncé mais repose maintenant sur une donnée que le Système ne peut plus vérifier. Cette limite est explicite, elle n'est pas un effet de bord : elle a été acceptée en échange de la disparition d'un travail de saisie considérable.
@@ -49,7 +51,8 @@ Ce contrat est indépendant de la technologie choisie (PostgreSQL, NestJS, PWA) 
 | INV-11 `[V2]` | Un compte Admin n'a jamais de droit d'écriture sur le référentiel ou le planning d'une UFR quelconque — uniquement sur la création d'UFR/comptes Gestionnaire et le transfert d'UFR d'un Étudiant. |
 | INV-12 `[V3]` | Un créneau visible sur le programme public ne porte jamais de donnée nominative d'étudiant : ni INE, ni nom, ni liste des inscrits. Ce qui est publié se limite à l'UE, l'enseignant, la salle, l'horaire, le statut et son motif. |
 | INV-13 `[V3]` | L'adresse d'abonnement calendrier d'un groupe est stable pendant toute la durée de vie de ce groupe : elle ne change jamais du fait d'une modification, d'un ajout ou d'une suppression de créneau. Un visiteur abonné une fois n'a jamais à se réabonner. |
-| INV-14 `[V3]` | Une séance annulée à une date précise laisse toujours le créneau qui la porte actif pour ses autres dates. Annuler une occurrence ne supprime jamais le cours du reste de la période académique. |
+| ~~INV-14~~ `[V3]` | ~~Une séance annulée à une date précise laisse toujours le créneau actif pour ses autres dates.~~ **`[V4]` Retiré**, sans objet — conservé pour mémoire : | Une séance annulée à une date précise laisse toujours le créneau qui la porte actif pour ses autres dates. Annuler une occurrence ne supprime jamais le cours du reste de la période académique. |
+| INV-19 `[V4]` | Une séance est toujours rattachée à une date réelle, jamais à un jour de semaine récurrent, et cette date n'est jamais un dimanche. |
 | INV-15 `[V3]` | Une séance annulée ou modifiée reste toujours visible, signalée comme telle et accompagnée de son motif, aussi bien sur le programme public que dans un agenda abonné. Elle ne disparaît jamais silencieusement — la disparition priverait l'utilisateur de l'information même que le système existe pour transmettre. |
 
 ### 1.4 Qu'est-ce qui est interdit ? (Contraintes strictes / refus explicites)
@@ -66,7 +69,7 @@ Ce contrat est indépendant de la technologie choisie (PostgreSQL, NestJS, PWA) 
 | ~~INT-08~~ `[V2]` | ~~Un Étudiant déjà inscrit dans une UFR ne peut jamais être rattaché simultanément à une autre.~~ **`[V3.1]` Retiré** avec le référentiel nominatif. |
 | INT-09 `[V2, révisé V3]` | Seul l'Admin peut créer une UFR ou un compte Gestionnaire de scolarité ; ni un Gestionnaire, ni un Visiteur public ne peuvent le faire, quelle que soit l'interface utilisée. |
 | INT-10 `[V3]` | Le référentiel des étudiants (INE, noms, composition nominative des groupes) ne peut jamais être atteint par une requête non authentifiée, quel que soit le point d'entrée — y compris indirectement, par un champ dérivé exposé sur le programme public. |
-| INT-11 `[V3]` | Une occurrence datée ne peut jamais être annulée en dehors des bornes de la période académique de l'UFR concernée : on n'annule pas une séance qui n'a jamais été programmée. |
+| ~~INT-11~~ `[V3]` | ~~Une occurrence datée ne peut jamais être annulée hors des bornes de la période académique.~~ **`[V4]` Retiré** avec la période académique : | Une occurrence datée ne peut jamais être annulée en dehors des bornes de la période académique de l'UFR concernée : on n'annule pas une séance qui n'a jamais été programmée. |
 
 ---
 

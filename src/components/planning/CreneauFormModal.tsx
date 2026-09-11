@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Search, X } from "lucide-react";
 import type {
   Creneau,
@@ -15,6 +15,7 @@ import { normaliser } from "@/lib/recherche";
 import { correspond } from "@/lib/filtres";
 import { ConflitGraviteBadge } from "@/components/ui/StatusBadge";
 import { apiFetch } from "@/lib/api";
+import { ajouterJours, depuisIso, versIso } from "@/lib/semaines";
 
 const JOURS: { value: Creneau["jour"]; label: string }[] = [
   { value: "lundi", label: "Lun" },
@@ -37,6 +38,9 @@ const NOUVELLE_UE = "__nouvelle__";
 
 interface Props {
   creneau: Creneau | null; // null = création, sinon édition
+  // Lundi (ISO) de la semaine en cours d'édition — les jours cochés y sont
+  // rapportés pour produire des dates réelles.
+  lundi: string;
   creneauxExistants: Creneau[]; // ne contient pas `creneau`
   enseignants: Enseignant[];
   groupes: Groupe[];
@@ -56,6 +60,10 @@ interface Props {
 // FR-EDT-01/02/03 + FR-CONF-01→08 : un seul formulaire pour créer, modifier
 // ou annuler un/des créneau(x), avec détection de conflits recalculée à
 // chaque changement (§4.3 : "au moment de la saisie ou de la modification").
+// [V4] Les jours cochés sont résolus en DATES de la semaine affichée : le
+// programme est publié semaine par semaine, « lundi » veut donc dire « le
+// lundi de cette semaine-là », jamais « tous les lundis ».
+//
 // En création, un cours peut se répéter sur plusieurs jours de la semaine
 // (ex. lundi ET jeudi) : un créneau distinct est généré par jour coché, tous
 // identiques hormis le jour. En édition, on modifie une seule occurrence à
@@ -63,6 +71,7 @@ interface Props {
 // d'autres.
 export function CreneauFormModal({
   creneau,
+  lundi,
   creneauxExistants,
   enseignants,
   groupes,
@@ -91,6 +100,15 @@ export function CreneauFormModal({
   const [enseignantRecherche, setEnseignantRecherche] = useState("");
   const [salleId, setSalleId] = useState(creneau?.salle.id ?? salles[0]?.id ?? "");
   const [jours, setJours] = useState<Set<Creneau["jour"]>>(new Set([creneau?.jour ?? "lundi"]));
+
+  // Un jour de la semaine affichée → sa date réelle. Mémorisé sur `lundi` :
+  // recréée à chaque rendu, la fonction relancerait le calcul d'aperçu et de
+  // conflits en boucle.
+  const dateDuJour = useCallback(
+    (j: Creneau["jour"]) =>
+      versIso(ajouterJours(depuisIso(lundi), JOURS.findIndex((x) => x.value === j))),
+    [lundi]
+  );
   const [heureDebut, setHeureDebut] = useState(creneau?.heureDebut ?? "08:00");
   const [heureFin, setHeureFin] = useState(creneau?.heureFin ?? "10:00");
   const [motif, setMotif] = useState("");
@@ -159,7 +177,16 @@ export function CreneauFormModal({
     if (!groupeChoisi || !salleChoisie || jours.size === 0) return [];
     const ue =
       ueId === NOUVELLE_UE
-        ? { id: "ue-temp", code: "", intitule: ueIntituleLibre || "(nouvelle UE)", niveau: "", ufrId: "" }
+        ? {
+            id: "ue-temp",
+            code: "",
+            intitule: ueIntituleLibre || "(nouvelle UE)",
+            niveau: "",
+            ufrId: "",
+            // Aperçu local d'une UE pas encore créée : elle n'a pas encore
+            // de départements, et le calcul de conflits n'en a pas besoin.
+            departements: [],
+          }
         : unitesEnseignement.find((u) => u.id === ueId);
     const enseignant =
       enseignantId === NOUVEL_ENSEIGNANT
@@ -180,15 +207,13 @@ export function CreneauFormModal({
           groupe: groupeChoisi,
           salle: salleChoisie,
           jour,
+          date: dateDuJour(jour),
           heureDebut: segment.heureDebut,
           heureFin: segment.heureFin,
           statut: creneau?.statut ?? "normal",
-          // [V3] Aperçu local pour le calcul de conflits en direct : la
-          // révision n'a de sens qu'une fois enregistrée côté serveur, et
-          // une annulation datée ne se saisit pas dans ce formulaire (elle
-          // se pose sur un créneau qui existe déjà, FR-EDT-07).
+          // Aperçu local pour le calcul de conflits en direct : la révision
+          // n'a de sens qu'une fois enregistrée côté serveur.
           version: creneau?.version ?? 0,
-          seancesAnnulees: creneau?.seancesAnnulees ?? [],
         });
         i++;
       }
@@ -200,6 +225,7 @@ export function CreneauFormModal({
     groupeChoisi,
     salleChoisie,
     jours,
+    dateDuJour,
     heureDebut,
     heureFin,
     ueId,

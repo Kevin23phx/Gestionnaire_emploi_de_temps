@@ -53,24 +53,19 @@ export default function UfrsAdminPage() {
               <th className="px-4 py-3">Sigle</th>
               <th className="px-4 py-3">Type</th>
               <th className="px-4 py-3">Gestionnaire</th>
-              {/* [V3] FR-ADMIN-03 : une UFR sans période académique publie
-                  dans l'agenda des étudiants des cours qui se répètent sans
-                  fin. C'est invisible depuis l'UFR elle-même — l'Admin, qui
-                  supervise, est le seul à pouvoir le remarquer. */}
-              <th className="px-4 py-3">Période académique</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
           <tbody>
             {ufrs === null ? (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-text-muted">
+                <td colSpan={5} className="px-4 py-6 text-center text-text-muted">
                   Chargement...
                 </td>
               </tr>
             ) : ufrs.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-text-muted">
+                <td colSpan={5} className="px-4 py-6 text-center text-text-muted">
                   Aucun établissement pour l&apos;instant.
                 </td>
               </tr>
@@ -91,15 +86,6 @@ export default function UfrsAdminPage() {
                       </div>
                     ) : (
                       <span className="text-text-subtle">Aucun compte</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    {ufr.periodeDebut && ufr.periodeFin ? (
-                      <span className="text-xs text-text-muted">
-                        {ufr.periodeDebut} → {ufr.periodeFin}
-                      </span>
-                    ) : (
-                      <Badge tone="warning" label="Non définie" />
                     )}
                   </td>
                   <td className="px-4 py-3 text-right">

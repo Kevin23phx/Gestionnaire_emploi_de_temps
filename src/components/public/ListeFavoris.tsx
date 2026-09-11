@@ -30,6 +30,7 @@ export function ListeFavoris() {
               <span className="block truncate font-semibold text-text">{f.nom}</span>
               <span className="block truncate text-xs text-text-muted">
                 {f.ufrSigle} · {f.filiere} · {f.niveau}
+                {f.anneeAcademique ? ` · ${f.anneeAcademique}` : ""}
               </span>
             </Link>
             <button

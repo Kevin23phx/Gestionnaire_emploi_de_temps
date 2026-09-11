@@ -15,16 +15,14 @@ import { JOURS_SEMAINE, ajouterJours, datesDeLaSemaine, depuisIso, estAujourdhui
 const APPARENCE: Record<StatutSeance, { carte: string; badge: string | null }> = {
   normal: { carte: "border-l-4 border-status-info bg-status-info-bg", badge: null },
   modifie: { carte: "border-l-4 border-status-warning bg-status-warning-bg", badge: "Modifié" },
-  // Deux rouges, deux messages distincts : « cette séance-ci » n'est pas
-  // « ce cours ». Les confondre dirait à l'étudiant que son cours est
-  // supprimé alors que l'enseignant est simplement absent un jour (RM-10).
-  annule_seance: { carte: "border-l-4 border-status-danger bg-status-danger-bg", badge: "Séance annulée" },
-  annule: { carte: "border-l-4 border-status-danger bg-status-danger-bg", badge: "Cours annulé" },
+  // [V4] Un seul « annulé » : chaque séance porte sa date, l'annuler
+  // n'annule que celle-là. La semaine suivante a son propre programme.
+  annule: { carte: "border-l-4 border-status-danger bg-status-danger-bg", badge: "Annulé" },
 };
 
 function Seance({ seance }: { seance: SeancePublique }) {
   const { carte, badge } = APPARENCE[seance.statut];
-  const barre = seance.statut === "annule" || seance.statut === "annule_seance";
+  const barre = seance.statut === "annule";
 
   return (
     <div className={`flex flex-col gap-1 rounded-lg p-3 shadow-sm ${carte}`}>
@@ -63,14 +61,10 @@ export function ProgrammeSemaine({
   const precedente = versIso(ajouterJours(depuisIso(semaine.lundi), -7));
   const suivante = versIso(ajouterJours(depuisIso(semaine.lundi), 7));
 
-  // Les bornes de navigation viennent de la période académique de l'UFR :
-  // laisser feuilleter à l'infini des semaines vides ferait croire à un
-  // programme inexistant (FR-REF-16). Une semaine est atteignable dès
-  // qu'elle CHEVAUCHE la période — on compare donc son samedi au début de
-  // période et son lundi à la fin, jamais deux fois la même borne.
-  const samediPrecedente = versIso(ajouterJours(depuisIso(precedente), 5));
-  const peutReculer = semaine.periodeDebut === null || samediPrecedente >= semaine.periodeDebut;
-  const peutAvancer = semaine.periodeFin === null || suivante <= semaine.periodeFin;
+  // [V4] Aucune borne : le programme est publié semaine par semaine, il n'y
+  // a plus de période à respecter. Le visiteur navigue librement ; une
+  // semaine sans programme le dit simplement, ce qui est l'information
+  // juste — « pas encore publié » et « erreur » ne se ressemblent pas.
 
   const parJour = JOURS_SEMAINE.map((jour, i) => ({
     jour,
@@ -87,9 +81,8 @@ export function ProgrammeSemaine({
       <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2.5">
         <button
           onClick={() => onSemaineChange(precedente)}
-          disabled={!peutReculer}
           aria-label="Semaine précédente"
-          className="rounded-lg border border-border p-2 text-text-muted hover:bg-surface-muted disabled:opacity-40"
+          className="rounded-lg border border-border p-2 text-text-muted hover:bg-surface-muted"
         >
           <ChevronLeft className="h-4 w-4" aria-hidden="true" />
         </button>
@@ -97,23 +90,25 @@ export function ProgrammeSemaine({
           <p className="truncate text-sm font-semibold text-text">
             {libelleSemaine(semaine.lundi, semaine.samedi)}
           </p>
-          {semaine.periodeLibelle ? (
-            <p className="truncate text-xs text-text-subtle">{semaine.periodeLibelle}</p>
+          {!semaine.publie ? (
+            <p className="truncate text-xs text-text-subtle">Programme pas encore publié</p>
           ) : null}
         </div>
         <button
           onClick={() => onSemaineChange(suivante)}
-          disabled={!peutAvancer}
           aria-label="Semaine suivante"
-          className="rounded-lg border border-border p-2 text-text-muted hover:bg-surface-muted disabled:opacity-40"
+          className="rounded-lg border border-border p-2 text-text-muted hover:bg-surface-muted"
         >
           <ChevronRight className="h-4 w-4" aria-hidden="true" />
         </button>
       </div>
 
       {semaineVide ? (
+        // Le programme sort en fin de semaine pour la suivante : une semaine
+        // vide n'est pas une anomalie, c'est une semaine dont la scolarité
+        // n'a pas encore fait sortir l'emploi du temps.
         <p className="px-4 py-10 text-center text-sm text-text-muted">
-          Aucun cours cette semaine-là.
+          Le programme de cette semaine n&apos;a pas encore été publié.
         </p>
       ) : (
         // Une colonne par jour au-delà de md, une pile de sections en

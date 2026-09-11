@@ -10,6 +10,27 @@ import type { ProgrammePublic } from "@/lib/types";
 // le garder (FR-PUB-04), l'abonner à son agenda (FR-PUB-05), être alerté
 // (FR-PUB-08). Aucun ne demande de compte.
 
+// Une adresse locale (localhost, 127.x, 10.x, 172.16-31.x, 192.168.x) n'est
+// joignable que depuis le réseau de développement. Or un agenda en ligne
+// (Google, Outlook) va chercher le flux **depuis ses propres serveurs**, sur
+// Internet : une URL privée ne lui répondra jamais. L'abonnement s'ajoute
+// sans erreur, puis reste éternellement vide — un silence qu'on met des
+// heures à diagnostiquer si rien ne l'annonce.
+function estAdresseLocale(url: string): boolean {
+  try {
+    const hote = new URL(url).hostname;
+    return (
+      hote === "localhost" ||
+      /^127\./.test(hote) ||
+      /^10\./.test(hote) ||
+      /^192\.168\./.test(hote) ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(hote)
+    );
+  } catch {
+    return false;
+  }
+}
+
 function urlCalendrier(groupeId: string): string {
   // URL absolue et non relative : elle est destinée à être collée dans une
   // application tierce (Google Agenda, Outlook), qui n'a aucune idée de
@@ -61,6 +82,7 @@ export function ActionsProgramme({ programme }: { programme: ProgrammePublic }) 
       nom: groupe.nom,
       filiere: groupe.filiere,
       niveau: groupe.niveau,
+      anneeAcademique: groupe.anneeAcademique,
       ufrSigle: groupe.ufr.sigleAffiche,
       ajouteLe: new Date().toISOString(),
     });
@@ -117,6 +139,9 @@ export function ActionsProgramme({ programme }: { programme: ProgrammePublic }) 
     if (!reponse.ok) setMessageAlerte("L'alerte n'a pas pu être activée. Réessayez plus tard.");
   }
 
+  const url = urlCalendrier(groupe.id);
+  const urlLocale = estAdresseLocale(url);
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap gap-2">
@@ -172,7 +197,7 @@ export function ActionsProgramme({ programme }: { programme: ProgrammePublic }) 
           <div className="mt-3 flex gap-2">
             <input
               readOnly
-              value={urlCalendrier(groupe.id)}
+              value={url}
               onFocus={(e) => e.currentTarget.select()}
               className="min-w-0 flex-1 rounded-lg border border-border bg-surface px-3 py-2 font-mono text-xs text-text-muted"
             />
@@ -185,10 +210,26 @@ export function ActionsProgramme({ programme }: { programme: ProgrammePublic }) 
             </button>
           </div>
 
+          {urlLocale ? (
+            <p className="mt-3 rounded-lg bg-status-warning-bg px-3 py-2 text-xs text-text">
+              <strong className="font-semibold">Adresse locale.</strong> Google Agenda et Outlook vont chercher le
+              programme depuis leurs propres serveurs, sur Internet : cette adresse ne leur répondra pas et
+              l&apos;agenda restera vide. Utilisable uniquement pour un essai depuis cet appareil, en attendant la
+              mise en ligne.
+            </p>
+          ) : null}
+
           <ul className="mt-3 space-y-1 text-xs text-text-muted">
             <li>
               <strong className="font-medium text-text">Google Agenda</strong> : Autres agendas → + → À partir de
               l&apos;URL
+            </li>
+            <li className="pt-1 text-text-subtle">
+              {/* Distinction décisive et jamais évidente : un fichier .ics
+                  importé est une COPIE figée, qui ne se mettra jamais à jour.
+                  Seul l'abonnement par URL suit les changements. */}
+              Choisissez bien <strong className="font-medium text-text">« à partir de l&apos;URL »</strong> et non
+              « importer un fichier » : un fichier importé est une copie figée, il ne suivra aucune modification.
             </li>
             <li>
               <strong className="font-medium text-text">iPhone</strong> : Réglages → Calendrier → Comptes → Ajouter un

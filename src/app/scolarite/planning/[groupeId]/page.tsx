@@ -5,11 +5,10 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { detecterConflits } from "@/lib/conflict-detection";
-import type { Creneau, Enseignant, Groupe, Salle, UniteEnseignement, Ufr } from "@/lib/types";
+import type { Creneau, Enseignant, Groupe, Salle, UniteEnseignement } from "@/lib/types";
 import { ScheduleWeekGrid } from "@/components/schedule/ScheduleWeekGrid";
 import { ConflictPanel } from "@/components/conflicts/ConflictPanel";
 import { CreneauFormModal } from "@/components/planning/CreneauFormModal";
-import { SeancesSemaine } from "@/components/planning/SeancesSemaine";
 import { apiFetch } from "@/lib/api";
 import { ajouterJours, depuisIso, libelleSemaine, lundiDe, versIso } from "@/lib/semaines";
 
@@ -37,7 +36,6 @@ export default function ProgrammeGroupePage() {
   // sans dates à l'écran, une annulation ponctuelle (FR-EDT-07) resterait
   // invisible pour le Gestionnaire qui vient de la saisir.
   const [lundi, setLundi] = useState(() => versIso(lundiDe(new Date())));
-  const [ufr, setUfr] = useState<Ufr | null>(null);
 
   useEffect(() => {
     apiFetch("/creneaux")
@@ -57,14 +55,7 @@ export default function ProgrammeGroupePage() {
       .then((data) => setUnitesEnseignement(data.cours));
     apiFetch("/auth/me")
       .then((r) => r.json())
-      .then(async (data) => {
-        if (data.nom) setAuteur(`${data.prenom} ${data.nom}`);
-        if (!data.ufrId) return;
-        // FR-REF-16 : la période académique borne la navigation par semaine.
-        const reponse = await apiFetch("/ufrs");
-        const { ufrs } = await reponse.json();
-        setUfr((ufrs as Ufr[]).find((u) => u.id === data.ufrId) ?? null);
-      });
+      .then((data) => data.nom && setAuteur(`${data.prenom} ${data.nom}`));
   }, []);
 
   const donneesPretes =
@@ -76,9 +67,16 @@ export default function ProgrammeGroupePage() {
 
   const groupeActuel = groupes?.find((g) => g.id === groupeId) ?? null;
 
+  const semainePrecedente = versIso(ajouterJours(depuisIso(lundi), -7));
+  const semaineSuivante = versIso(ajouterJours(depuisIso(lundi), 7));
+  const samedi = versIso(ajouterJours(depuisIso(lundi), 5));
+
+  // [V4] Le programme est publié semaine par semaine : la feuille ne montre
+  // que la semaine affichée. Sans ce filtre, toutes les semaines saisies se
+  // superposeraient dans la même grille de six jours.
   const creneauxDuGroupe = useMemo(
-    () => (creneaux ?? []).filter((c) => c.groupe.id === groupeId),
-    [creneaux, groupeId]
+    () => (creneaux ?? []).filter((c) => c.groupe.id === groupeId && c.date >= lundi && c.date <= samedi),
+    [creneaux, groupeId, lundi, samedi]
   );
 
   const conflits = useMemo(() => {
@@ -88,49 +86,6 @@ export default function ProgrammeGroupePage() {
       c.creneauxConcernes.some((id) => idsDuGroupe.has(id))
     );
   }, [creneaux, creneauxDuGroupe]);
-
-  const semainePrecedente = versIso(ajouterJours(depuisIso(lundi), -7));
-  const semaineSuivante = versIso(ajouterJours(depuisIso(lundi), 7));
-  const samedi = versIso(ajouterJours(depuisIso(lundi), 5));
-  const peutReculer = !ufr?.periodeDebut || versIso(ajouterJours(depuisIso(semainePrecedente), 5)) >= ufr.periodeDebut;
-  const peutAvancer = !ufr?.periodeFin || semaineSuivante <= ufr.periodeFin;
-
-  // [V3] FR-EDT-07 — annulation/rétablissement d'une séance datée. Le
-  // backend renvoie le créneau complet remis à jour (avec sa nouvelle
-  // révision et sa liste d'annulations) : on remplace l'état local avec sa
-  // réponse plutôt que de le recalculer ici, pour que l'écran ne puisse
-  // jamais raconter autre chose que la base.
-  async function annulerSeance(creneauId: string, date: string, motif: string) {
-    setErreurEcriture(null);
-    const reponse = await apiFetch(`/creneaux/${creneauId}/seance`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ date, motif }),
-    });
-    const data = await reponse.json();
-    if (!reponse.ok) {
-      setErreurEcriture(data.erreur ?? "Impossible d'annuler cette séance.");
-      return;
-    }
-    appliquerResultats([data as Creneau]);
-    setConfirmation(`Séance du ${date} annulée. Les étudiants abonnés en sont informés.`);
-    setTimeout(() => setConfirmation(null), 5000);
-  }
-
-  async function retablirSeance(creneauId: string, date: string) {
-    setErreurEcriture(null);
-    const reponse = await apiFetch(`/creneaux/${creneauId}/seance?date=${encodeURIComponent(date)}`, {
-      method: "DELETE",
-    });
-    const data = await reponse.json();
-    if (!reponse.ok) {
-      setErreurEcriture(data.erreur ?? "Impossible de rétablir cette séance.");
-      return;
-    }
-    appliquerResultats([data as Creneau]);
-    setConfirmation(`Séance du ${date} rétablie.`);
-    setTimeout(() => setConfirmation(null), 5000);
-  }
 
   function ouvrirEdition(creneauId: string) {
     if (!donneesPretes) return;
@@ -175,7 +130,7 @@ export default function ProgrammeGroupePage() {
       enseignantId: c.enseignant.id,
       groupeId: c.groupe.id,
       salleId: c.salle.id,
-      jour: c.jour,
+      date: c.date,
       heureDebut: c.heureDebut,
       heureFin: c.heureFin,
       statut: c.statut,
@@ -299,7 +254,8 @@ export default function ProgrammeGroupePage() {
           </h1>
           {groupeActuel ? (
             <p className="text-sm text-text-muted">
-              {groupeActuel.filiere} · {groupeActuel.niveau} · {groupeActuel.effectif} étudiants
+              {groupeActuel.filiere} · {groupeActuel.niveau} · {groupeActuel.anneeAcademique} ·{" "}
+              {groupeActuel.effectif} étudiants
             </p>
           ) : null}
         </div>
@@ -327,49 +283,35 @@ export default function ProgrammeGroupePage() {
       <div className="mb-4 flex items-center justify-between gap-2 rounded-xl border border-border bg-surface px-3 py-2">
         <button
           onClick={() => setLundi(semainePrecedente)}
-          disabled={!peutReculer}
           aria-label="Semaine précédente"
-          className="rounded-lg border border-border p-2 text-text-muted hover:bg-surface-muted disabled:opacity-40"
+          className="rounded-lg border border-border p-2 text-text-muted hover:bg-surface-muted"
         >
           <ChevronLeft className="h-4 w-4" aria-hidden="true" />
         </button>
         <div className="min-w-0 text-center">
           <p className="truncate text-sm font-semibold text-text">{libelleSemaine(lundi, samedi)}</p>
-          {ufr?.periodeDebut ? (
-            <p className="truncate text-xs text-text-subtle">
-              {ufr.periodeLibelle ?? "Période académique"} : {ufr.periodeDebut} → {ufr.periodeFin}
-            </p>
-          ) : (
-            // Sans période déclarée, la navigation n'a pas de bornes et le
-            // flux calendrier n'a pas de fin de récurrence (FR-REF-16).
-            <p className="truncate text-xs text-status-warning">
-              Période académique non définie — à renseigner dans le tableau de bord.
-            </p>
-          )}
+          <p className="truncate text-xs text-text-subtle">
+            {creneauxDuGroupe.length === 0
+              ? "Aucun cours saisi pour cette semaine"
+              : `${creneauxDuGroupe.length} cours programmé${creneauxDuGroupe.length > 1 ? "s" : ""}`}
+          </p>
         </div>
         <button
           onClick={() => setLundi(semaineSuivante)}
-          disabled={!peutAvancer}
           aria-label="Semaine suivante"
-          className="rounded-lg border border-border p-2 text-text-muted hover:bg-surface-muted disabled:opacity-40"
+          className="rounded-lg border border-border p-2 text-text-muted hover:bg-surface-muted"
         >
           <ChevronRight className="h-4 w-4" aria-hidden="true" />
         </button>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
-        <div className="order-2 flex flex-col gap-6 xl:order-1">
+        <div className="order-2 xl:order-1">
           <ScheduleWeekGrid
             creneaux={creneauxDuGroupe}
             variante="salle-enseignant"
             onCreneauClick={(c) => ouvrirEdition(c.id)}
             lundi={lundi}
-          />
-          <SeancesSemaine
-            creneaux={creneauxDuGroupe}
-            lundi={lundi}
-            onAnnuler={annulerSeance}
-            onRetablir={retablirSeance}
           />
         </div>
         <div className="order-1 self-start xl:sticky xl:top-6 xl:order-2">
@@ -386,6 +328,7 @@ export default function ProgrammeGroupePage() {
       {modal && donneesPretes && groupeActuel ? (
         <CreneauFormModal
           creneau={modal.mode === "edition" ? modal.creneau : null}
+          lundi={lundi}
           creneauxExistants={
             modal.mode === "edition"
               ? (creneaux ?? []).filter((c) => c.id !== modal.creneau.id)

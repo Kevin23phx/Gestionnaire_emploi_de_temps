@@ -3,6 +3,8 @@
 **Étape 5 de la chaîne méthodologique** — répond à : *comment le système se comporte-t-il, et comment est-il structuré pour supporter ce comportement ?*
 Règle d'or respectée : le **comportement (UML)** est modélisé avant la **structure (C4)**. Ordre suivi : C4 Contexte → UML Cas d'usage → UML Séquence → C4 Conteneur → C4 Composant.
 
+> **`[V4]` Révision du 2026-09-09.** Le programme est publié semaine par semaine : une séance porte une date, il n'y a plus de récurrence. Dans les diagrammes, « Annuler une séance à une date précise » disparaît (annuler un créneau annule cette séance-là) ainsi que « Définir la période académique ». Le composant `referentiel` ne porte plus de période.
+
 > **`[V3.2]` Révision du 2026-09-07.** Le périmètre passe de 5 UFR à **12 établissements** (5 UFR, 6 instituts, 1 école doctorale) et 53 départements. Dans les diagrammes, l'acteur « Gestionnaire d'établissement » devient « Gestionnaire d'établissement », et le composant `referentiel` porte désormais le référentiel des départements.
 
 > **`[V3.1]` Révision du 2026-09-07 (même journée).** Le référentiel nominatif des étudiants est supprimé : l'effectif d'un groupe est un nombre saisi. Disparaissent des diagrammes ci-dessous : les cas d'usage « Importer le référentiel académique », « Télécharger le canevas d'import », « Filtrer les étudiants » et « Transférer un étudiant vers une autre UFR ». Apparaît à leur place « Déclarer l'effectif d'un groupe ».
@@ -57,11 +59,9 @@ graph LR
         UP6(["Consulter hors-ligne"])
 
         UC1(["S'authentifier / activer son compte"])
-        UC22(["Créer un groupe<br/>département, niveau, année, effectif"])
+        UC22(["Composer le programme d'une semaine<br/>lundi → samedi"])
         UC8(["Créer / modifier / annuler un créneau"])
         UC9(["Détecter les conflits"])
-        UC19(["Annuler une séance à une date précise"])
-        UC20(["Définir la période académique de son UFR"])
         UC21(["Rechercher / filtrer dans le référentiel"])
         UC11(["Consulter le journal d'audit de son UFR"])
         UC12(["Consulter le tableau de bord de son UFR"])
@@ -79,8 +79,6 @@ graph LR
     S --> UC1
     S --> UC22
     S --> UC8
-    S --> UC19
-    S --> UC20
     S --> UC21
     S --> UC11
     S --> UC12
@@ -94,7 +92,6 @@ graph LR
     UP4 -. extend .-> UP2
     UP5 -. extend .-> UP3
     UC8 -. include .-> UC9
-    UC19 -. include .-> UC20
     UC14 -. include .-> UC13
     UC8 -. include .-> UC21
 ```
@@ -267,8 +264,8 @@ graph TB
         Guard["Permissions RBAC<br/>(scope UFR + rôle Admin) [V2]"]
         Auth["accounts (auth)"]
         Ufr["ufr [V2]"]
-        Ref["referentiel<br/>+ période académique [V3]<br/>+ effectif saisi [V3.1]<br/>+ départements officiels [V3.2]"]
-        Plan["planning<br/>+ exceptions datées [V3]"]
+        Ref["referentiel<br/>+ effectif saisi [V3.1]<br/>+ départements officiels [V3.2]"]
+        Plan["planning<br/>+ séances datées [V4]"]
         Conf["conflict_engine"]
         Audit["audit"]
         Dash["dashboard"]

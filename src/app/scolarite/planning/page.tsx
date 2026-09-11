@@ -119,7 +119,12 @@ export default function ListeProgrammesPage() {
                   <span className="font-semibold text-text">{groupe.nom}</span>
                 </div>
                 <p className="text-xs text-text-muted">
-                  {groupe.filiere} · {groupe.niveau} · {groupe.effectif} étudiants
+                  {/* [V3.3] L'année académique fait partie de l'identité d'un
+                      groupe : « L3 INFO - Groupe A » existe en 2025-2026 ET en
+                      2026-2027, ce sont deux programmes différents. Sans elle
+                      à l'écran, rien ne distingue la promotion courante de la
+                      précédente. */}
+                  {groupe.filiere} · {groupe.niveau} · {groupe.anneeAcademique} · {groupe.effectif} étudiants
                 </p>
                 <p className="mt-1 text-xs font-medium text-text-subtle">
                   {nbCreneaux > 0 ? `${nbCreneaux} créneau${nbCreneaux > 1 ? "x" : ""}` : "Programme vide"}
