@@ -6,23 +6,23 @@ import type { Departement, Groupe } from "@/lib/types";
 import { apiFetch } from "@/lib/api";
 import { AUTRE, NIVEAUX, anneesAcademiques } from "@/lib/referentiel-options";
 
-// [V3.1] FR-REF-12/13 — filière, niveau et année académique se
+// [V3.1] FR-REF-12/13 — département, niveau et année académique se
 // SÉLECTIONNENT au lieu de se saisir, et l'effectif est un simple nombre.
 //
 // Deux changements liés :
 //
-// 1. Les listes déroulantes évitent les variantes d'écriture d'une même
-//    filière (« Informatique » / « informatique » / « INFO »), qui
-//    apparaîtraient comme trois filières distinctes dans la cascade
+// 1. Les listes déroulantes évitent les variantes d'écriture d'un même
+//    département (« Informatique » / « informatique » / « INFO »), qui
+//    apparaîtraient comme trois départements distincts dans la cascade
 //    publique (FR-PUB-02).
 //
-//    [V3.2] Les filières viennent désormais du RÉFÉRENTIEL OFFICIEL des
-//    départements de l'UJKZ (53 entrées, GET /departements), et non plus
-//    des groupes déjà créés. La différence est de fond : une liste déduite
-//    des groupes ne peut que se dégrader — chaque faute de frappe y devient
-//    une filière de plus — alors qu'un référentiel s'enrichit. L'option
-//    « + Autre » subsiste et **enregistre** le nouveau département, qui
-//    sera proposé aux créations suivantes (FR-REF-21).
+//    [V3.2] Les départements viennent désormais du RÉFÉRENTIEL OFFICIEL de
+//    l'UJKZ (53 entrées, GET /departements), et non plus des groupes déjà
+//    créés. La différence est de fond : une liste déduite des groupes ne
+//    peut que se dégrader — chaque faute de frappe y devient un département
+//    de plus — alors qu'un référentiel s'enrichit. L'option « + Autre »
+//    subsiste et **enregistre** le nouveau département, qui sera proposé
+//    aux créations suivantes (FR-REF-21).
 //
 // 2. L'effectif est saisi directement. Il était auparavant dérivé du nombre
 //    d'étudiants importés — un travail de saisie considérable pour une
@@ -40,8 +40,8 @@ export function GroupeFormModal({
 
   const [departements, setDepartements] = useState<Departement[] | null>(null);
   const [nom, setNom] = useState("");
-  const [filiere, setFiliere] = useState("");
-  const [filiereLibre, setFiliereLibre] = useState("");
+  const [departement, setDepartement] = useState("");
+  const [departementLibre, setDepartementLibre] = useState("");
   const [niveau, setNiveau] = useState<string>(NIVEAUX[0]);
   // L'année en cours est au milieu de la liste (précédente, courante,
   // suivante) : c'est le choix juste dans l'immense majorité des cas.
@@ -59,7 +59,7 @@ export function GroupeFormModal({
         setDepartements(data.departements);
         // Si l'établissement n'a encore aucun département, on ouvre
         // directement sur la saisie libre plutôt que sur une liste vide.
-        setFiliere(data.departements[0]?.libelle ?? AUTRE);
+        setDepartement(data.departements[0]?.libelle ?? AUTRE);
       })
       .catch(() => {
         if (!annule) setDepartements([]);
@@ -69,11 +69,11 @@ export function GroupeFormModal({
     };
   }, []);
 
-  const filiereRetenue = filiere === AUTRE ? filiereLibre.trim() : filiere;
+  const departementRetenu = departement === AUTRE ? departementLibre.trim() : departement;
 
   async function handleSubmit() {
-    if (!nom.trim() || !filiereRetenue) {
-      setErreur("Le nom du groupe et la filière sont obligatoires.");
+    if (!nom.trim() || !departementRetenu) {
+      setErreur("Le nom du groupe et le département sont obligatoires.");
       return;
     }
     const nombre = Number(effectif);
@@ -84,15 +84,15 @@ export function GroupeFormModal({
     setErreur(null);
     setEnCours(true);
 
-    // FR-REF-21 : une filière saisie librement rejoint le référentiel de
-    // l'établissement, pour être proposée aux créations suivantes. Un échec
+    // FR-REF-21 : un département saisi librement rejoint le référentiel de
+    // l'établissement, pour être proposé aux créations suivantes. Un échec
     // ici (doublon de casse, par exemple) ne doit pas empêcher la création
     // du groupe lui-même — le libellé est de toute façon correct.
-    if (filiere === AUTRE && filiereRetenue) {
+    if (departement === AUTRE && departementRetenu) {
       await apiFetch("/departements", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ libelle: filiereRetenue }),
+        body: JSON.stringify({ libelle: departementRetenu }),
       }).catch(() => {});
     }
 
@@ -101,7 +101,7 @@ export function GroupeFormModal({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         nom,
-        filiere: filiereRetenue,
+        departement: departementRetenu,
         niveau,
         anneeAcademique,
         effectif: effectif === "" ? 0 : nombre,
@@ -144,13 +144,13 @@ export function GroupeFormModal({
           </div>
 
           <div>
-            <label htmlFor="groupe-filiere" className="text-sm font-medium text-text">
-              Filière (département)
+            <label htmlFor="groupe-departement" className="text-sm font-medium text-text">
+              Département
             </label>
             <select
-              id="groupe-filiere"
-              value={filiere}
-              onChange={(e) => setFiliere(e.target.value)}
+              id="groupe-departement"
+              value={departement}
+              onChange={(e) => setDepartement(e.target.value)}
               disabled={departements === null}
               className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm disabled:opacity-60"
             >
@@ -160,19 +160,19 @@ export function GroupeFormModal({
                   {d.libelle}
                 </option>
               ))}
-              <option value={AUTRE}>+ Autre filière...</option>
+              <option value={AUTRE}>+ Autre département...</option>
             </select>
-            {filiere === AUTRE ? (
+            {departement === AUTRE ? (
               <>
                 <input
                   type="text"
-                  value={filiereLibre}
-                  onChange={(e) => setFiliereLibre(e.target.value)}
-                  placeholder="Nom de la nouvelle filière"
+                  value={departementLibre}
+                  onChange={(e) => setDepartementLibre(e.target.value)}
+                  placeholder="Nom du nouveau département"
                   className="mt-2 w-full rounded-lg border border-border px-3 py-2 text-sm"
                 />
                 <p className="mt-1 text-xs text-text-subtle">
-                  Elle sera ajoutée aux départements de votre établissement et proposée la prochaine fois.
+                  Il sera ajouté aux départements de votre établissement et proposé la prochaine fois.
                 </p>
               </>
             ) : (

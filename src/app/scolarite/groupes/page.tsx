@@ -33,13 +33,13 @@ export default function GroupesPage() {
   // qu'un aller-retour réseau à chaque frappe, sur des connexions où c'est
   // justement la latence qui fait mal (cahier des charges §1.4).
   const tous = useMemo(() => groupes ?? [], [groupes]);
-  const filieres = useMemo(() => valeursDistinctes(tous, (g) => g.filiere), [tous]);
+  const departements = useMemo(() => valeursDistinctes(tous, (g) => g.departement), [tous]);
   const filtres = useMemo(
     () =>
       tous.filter(
         (g) =>
-          correspond(valeur("q"), g.nom, g.filiere) &&
-          (!valeur("filiere") || g.filiere === valeur("filiere")) &&
+          correspond(valeur("q"), g.nom, g.departement) &&
+          (!valeur("departement") || g.departement === valeur("departement")) &&
           (!valeur("niveau") || g.niveau === valeur("niveau")) &&
           (!valeur("annee") || g.anneeAcademique === valeur("annee"))
       ),
@@ -79,7 +79,7 @@ export default function GroupesPage() {
         <div>
           <h1 className="text-xl font-bold text-text">Groupes</h1>
           <p className="text-sm text-text-muted">
-            Référentiel des groupes/filières de votre établissement
+            Référentiel des groupes/départements de votre établissement
             {groupes ? ` — ${groupes.length} groupes.` : "..."}
           </p>
         </div>
@@ -93,9 +93,9 @@ export default function GroupesPage() {
       </div>
 
       <BarreFiltres
-        placeholder="Rechercher un groupe ou une filière..."
+        placeholder="Rechercher un groupe ou un département..."
         filtres={[
-          { cle: "filiere", label: "Filière", options: filieres },
+          { cle: "departement", label: "Département", options: departements },
           { cle: "niveau", label: "Niveau", options: valeursDistinctes(tous, (g) => g.niveau) },
           { cle: "annee", label: "Année", options: valeursDistinctes(tous, (g) => g.anneeAcademique) },
         ]}
@@ -129,7 +129,7 @@ export default function GroupesPage() {
           <thead>
             <tr className="text-xs uppercase tracking-wide text-text-subtle">
               <th className="px-4 py-2 font-medium">Groupe</th>
-              <th className="px-4 py-2 font-medium">Filière</th>
+              <th className="px-4 py-2 font-medium">Département</th>
               <th className="px-4 py-2 font-medium">Niveau</th>
               <th className="px-4 py-2 font-medium">Nombre d&apos;étudiants</th>
             </tr>
@@ -140,7 +140,7 @@ export default function GroupesPage() {
                 <td className="px-4 py-2 font-medium text-text">
                   {groupe.nom} <span className="font-normal text-text-subtle">({groupe.anneeAcademique})</span>
                 </td>
-                <td className="px-4 py-2 text-text-muted">{groupe.filiere}</td>
+                <td className="px-4 py-2 text-text-muted">{groupe.departement}</td>
                 <td className="px-4 py-2 text-text-muted">{groupe.niveau}</td>
                 <td className="px-4 py-2">
                   {enEdition === groupe.id ? (

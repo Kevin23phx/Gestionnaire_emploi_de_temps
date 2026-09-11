@@ -77,8 +77,8 @@ export default function UfrDetailAdminPage() {
       {onglet === "groupes" ? (
         <TableGeneric
           donnees={groupes}
-          colonnes={["Nom", "Filière", "Niveau", "Année", "Effectif"]}
-          lignes={(groupes ?? []).map((g) => [g.nom, g.filiere, g.niveau, g.anneeAcademique, `${g.effectif}`])}
+          colonnes={["Nom", "Département", "Niveau", "Année", "Effectif"]}
+          lignes={(groupes ?? []).map((g) => [g.nom, g.departement, g.niveau, g.anneeAcademique, `${g.effectif}`])}
         />
       ) : null}
 

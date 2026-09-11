@@ -14,7 +14,7 @@ export default function AidePage() {
       <h2 className="mt-8 text-lg font-semibold text-text">Consulter un emploi du temps</h2>
       <p className="mt-2 text-text-muted">
         Aucun compte n&apos;est nécessaire. Depuis l&apos;accueil, choisissez votre établissement (UFR, institut ou
-        école doctorale), votre filière puis votre
+        école doctorale), votre département puis votre
         niveau : le programme de votre groupe s&apos;affiche. Vous pouvez ensuite le garder en favori sur votre
         appareil, ou l&apos;ajouter à l&apos;agenda de votre téléphone pour recevoir automatiquement les
         changements.

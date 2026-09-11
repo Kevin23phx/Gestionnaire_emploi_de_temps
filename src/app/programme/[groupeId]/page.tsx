@@ -112,7 +112,7 @@ export default function ProgrammePage() {
             <div className="mb-5">
               <h1 className="text-xl font-bold text-text">{programme.groupe.nom}</h1>
               <p className="text-sm text-text-muted">
-                {programme.groupe.ufr.sigleAffiche} · {programme.groupe.filiere} ·{" "}
+                {programme.groupe.ufr.sigleAffiche} · {programme.groupe.departement} ·{" "}
                 {programme.groupe.niveau} · {programme.groupe.anneeAcademique}
               </p>
             </div>

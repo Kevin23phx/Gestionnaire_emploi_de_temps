@@ -47,8 +47,8 @@ export default function ListeProgrammesPage() {
     () =>
       tous.filter(
         (g) =>
-          correspond(valeur("q"), g.nom, g.filiere) &&
-          (!valeur("filiere") || g.filiere === valeur("filiere")) &&
+          correspond(valeur("q"), g.nom, g.departement) &&
+          (!valeur("departement") || g.departement === valeur("departement")) &&
           (!valeur("niveau") || g.niveau === valeur("niveau")) &&
           (!valeur("annee") || g.anneeAcademique === valeur("annee")) &&
           // Un programme encore vide est ce qu'un Gestionnaire cherche en
@@ -81,9 +81,9 @@ export default function ListeProgrammesPage() {
 
       {pretes ? (
         <BarreFiltres
-          placeholder="Rechercher un programme par groupe ou filière..."
+          placeholder="Rechercher un programme par groupe ou département..."
           filtres={[
-            { cle: "filiere", label: "Filière", options: valeursDistinctes(tous, (g) => g.filiere) },
+            { cle: "departement", label: "Département", options: valeursDistinctes(tous, (g) => g.departement) },
             { cle: "niveau", label: "Niveau", options: valeursDistinctes(tous, (g) => g.niveau) },
             { cle: "annee", label: "Année", options: valeursDistinctes(tous, (g) => g.anneeAcademique) },
             { cle: "etat", label: "État", options: ["rempli", "vide"] },
@@ -101,8 +101,8 @@ export default function ListeProgrammesPage() {
         <p className="px-4 py-6 text-center text-sm text-text-muted">Chargement...</p>
       ) : filtres.length === 0 && tous.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border bg-surface p-8 text-center text-sm text-text-muted">
-          Aucun groupe dans le référentiel pour l&apos;instant — créez-en un via
-          &laquo;&nbsp;Nouveau programme&nbsp;&raquo; ou depuis la section Groupes.
+          Aucun groupe dans le référentiel pour l&apos;instant — créez-en un depuis la
+          section Groupes avant d&apos;ouvrir un programme.
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -124,7 +124,7 @@ export default function ListeProgrammesPage() {
                       2026-2027, ce sont deux programmes différents. Sans elle
                       à l'écran, rien ne distingue la promotion courante de la
                       précédente. */}
-                  {groupe.filiere} · {groupe.niveau} · {groupe.anneeAcademique} · {groupe.effectif} étudiants
+                  {groupe.departement} · {groupe.niveau} · {groupe.anneeAcademique} · {groupe.effectif} étudiants
                 </p>
                 <p className="mt-1 text-xs font-medium text-text-subtle">
                   {nbCreneaux > 0 ? `${nbCreneaux} créneau${nbCreneaux > 1 ? "x" : ""}` : "Programme vide"}

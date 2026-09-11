@@ -6,32 +6,32 @@ import { ChevronRight, Loader2, Search } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import type { GroupePublic, Ufr } from "@/lib/types";
 
-// [V3] FR-PUB-02 — cascade UFR → filière → niveau → groupe.
+// [V3] FR-PUB-02 — cascade UFR → département → niveau → groupe.
 //
 // Quatre étages et non deux : « UFR + niveau », proposé au départ, ne
 // désigne pas un programme. À l'échelle d'une UFR de l'UJKZ, « UFR/SEA, L1 »
-// recouvre des dizaines de groupes répartis sur plusieurs filières — la
-// filière est l'échelon qui rend la sélection déterministe (RM-09).
+// recouvre des dizaines de groupes répartis sur plusieurs départements — le
+// département est l'échelon qui rend la sélection déterministe (RM-09).
 //
 // Chaque étage n'affiche que des valeurs réellement présentes dans le
 // référentiel compte tenu des choix amont : un visiteur ne peut donc pas
 // construire une combinaison vide en suivant l'interface.
 
-type Etage = "ufr" | "filiere" | "niveau" | "groupe";
+type Etage = "ufr" | "departement" | "niveau" | "groupe";
 
 export function RechercheProgramme() {
   const router = useRouter();
   const [ufrs, setUfrs] = useState<Ufr[] | null>(null);
-  const [filieres, setFilieres] = useState<string[] | null>(null);
+  const [departements, setDepartements] = useState<string[] | null>(null);
   const [niveaux, setNiveaux] = useState<string[] | null>(null);
   const [groupes, setGroupes] = useState<GroupePublic[] | null>(null);
 
   const [ufr, setUfr] = useState<Ufr | null>(null);
-  const [filiere, setFiliere] = useState<string | null>(null);
+  const [departement, setDepartement] = useState<string | null>(null);
   const [niveau, setNiveau] = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
 
-  const etage: Etage = !ufr ? "ufr" : !filiere ? "filiere" : !niveau ? "niveau" : "groupe";
+  const etage: Etage = !ufr ? "ufr" : !departement ? "departement" : !niveau ? "niveau" : "groupe";
 
   useEffect(() => {
     apiFetch("/public/ufrs")
@@ -40,27 +40,27 @@ export function RechercheProgramme() {
       .catch(() => setErreur("Impossible de charger la liste des UFR. Vérifiez votre connexion."));
   }, []);
 
-  // Les réinitialisations d'étage (`setFilieres(null)`...) sont faites dans
+  // Les réinitialisations d'étage (`setDepartements(null)`...) sont faites dans
   // les gestionnaires de clic ci-dessous, jamais ici : appeler setState
   // au corps d'un effet déclenche un rendu en cascade, et surtout le geste
   // qui invalide un étage est bien le clic, pas le chargement qui s'ensuit.
   useEffect(() => {
     if (!ufr) return;
-    apiFetch(`/public/filieres?ufrId=${encodeURIComponent(ufr.id)}`)
+    apiFetch(`/public/departements?ufrId=${encodeURIComponent(ufr.id)}`)
       .then((r) => r.json())
-      .then((d) => setFilieres(d.filieres));
+      .then((d) => setDepartements(d.departements));
   }, [ufr]);
 
   useEffect(() => {
-    if (!ufr || !filiere) return;
-    apiFetch(`/public/niveaux?ufrId=${encodeURIComponent(ufr.id)}&filiere=${encodeURIComponent(filiere)}`)
+    if (!ufr || !departement) return;
+    apiFetch(`/public/niveaux?ufrId=${encodeURIComponent(ufr.id)}&departement=${encodeURIComponent(departement)}`)
       .then((r) => r.json())
       .then((d) => setNiveaux(d.niveaux));
-  }, [ufr, filiere]);
+  }, [ufr, departement]);
 
   useEffect(() => {
-    if (!ufr || !filiere || !niveau) return;
-    const params = new URLSearchParams({ ufrId: ufr.id, filiere, niveau });
+    if (!ufr || !departement || !niveau) return;
+    const params = new URLSearchParams({ ufrId: ufr.id, departement, niveau });
     apiFetch(`/public/groupes?${params.toString()}`)
       .then((r) => r.json())
       .then((d: { groupes: GroupePublic[] }) => {
@@ -72,22 +72,22 @@ export function RechercheProgramme() {
         }
         setGroupes(d.groupes);
       });
-  }, [ufr, filiere, niveau, router]);
+  }, [ufr, departement, niveau, router]);
 
   // Choisir une valeur invalide tout ce qui en dépend : sans cela, revenir
   // en arrière puis choisir une autre UFR afficherait un instant les
-  // filières de la précédente.
+  // départements de la précédente.
   function choisirUfr(id: string) {
     setUfr(ufrs?.find((u) => u.id === id) ?? null);
-    setFilieres(null);
-    setFiliere(null);
+    setDepartements(null);
+    setDepartement(null);
     setNiveaux(null);
     setNiveau(null);
     setGroupes(null);
   }
 
-  function choisirFiliere(valeur: string) {
-    setFiliere(valeur);
+  function choisirDepartement(valeur: string) {
+    setDepartement(valeur);
     setNiveaux(null);
     setNiveau(null);
     setGroupes(null);
@@ -101,10 +101,10 @@ export function RechercheProgramme() {
   function revenirA(cible: Etage) {
     if (cible === "ufr") {
       setUfr(null);
-      setFiliere(null);
+      setDepartement(null);
       setNiveau(null);
-    } else if (cible === "filiere") {
-      setFiliere(null);
+    } else if (cible === "departement") {
+      setDepartement(null);
       setNiveau(null);
     } else if (cible === "niveau") {
       setNiveau(null);
@@ -128,11 +128,11 @@ export function RechercheProgramme() {
           <button onClick={() => revenirA("ufr")} className="rounded px-2 py-1 font-medium text-brand hover:bg-brand-light">
             {ufr.sigleAffiche}
           </button>
-          {filiere ? (
+          {departement ? (
             <>
               <ChevronRight className="h-3.5 w-3.5 text-text-subtle" aria-hidden="true" />
-              <button onClick={() => revenirA("filiere")} className="rounded px-2 py-1 font-medium text-brand hover:bg-brand-light">
-                {filiere}
+              <button onClick={() => revenirA("departement")} className="rounded px-2 py-1 font-medium text-brand hover:bg-brand-light">
+                {departement}
               </button>
             </>
           ) : null}
@@ -160,12 +160,12 @@ export function RechercheProgramme() {
         </Etape>
       ) : null}
 
-      {etage === "filiere" ? (
-        <Etape titre="Votre filière (département)" numero={2}>
+      {etage === "departement" ? (
+        <Etape titre="Votre département" numero={2}>
           <Choix
-            valeurs={filieres?.map((f) => ({ cle: f, principal: f }))}
-            onChoisir={choisirFiliere}
-            vide="Aucune filière n'est encore enregistrée pour cette UFR."
+            valeurs={departements?.map((d) => ({ cle: d, principal: d }))}
+            onChoisir={choisirDepartement}
+            vide="Aucun département n'est encore enregistré pour cet établissement."
           />
         </Etape>
       ) : null}
@@ -175,7 +175,7 @@ export function RechercheProgramme() {
           <Choix
             valeurs={niveaux?.map((n) => ({ cle: n, principal: n }))}
             onChoisir={choisirNiveau}
-            vide="Aucun niveau n'est encore enregistré pour cette filière."
+            vide="Aucun niveau n'est encore enregistré pour ce département."
           />
         </Etape>
       ) : null}

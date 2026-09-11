@@ -80,7 +80,7 @@ export function ActionsProgramme({ programme }: { programme: ProgrammePublic }) 
     ajouterFavori({
       groupeId: groupe.id,
       nom: groupe.nom,
-      filiere: groupe.filiere,
+      departement: groupe.departement,
       niveau: groupe.niveau,
       anneeAcademique: groupe.anneeAcademique,
       ufrSigle: groupe.ufr.sigleAffiche,

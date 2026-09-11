@@ -254,7 +254,7 @@ export default function ProgrammeGroupePage() {
           </h1>
           {groupeActuel ? (
             <p className="text-sm text-text-muted">
-              {groupeActuel.filiere} · {groupeActuel.niveau} · {groupeActuel.anneeAcademique} ·{" "}
+              {groupeActuel.departement} · {groupeActuel.niveau} · {groupeActuel.anneeAcademique} ·{" "}
               {groupeActuel.effectif} étudiants
             </p>
           ) : null}

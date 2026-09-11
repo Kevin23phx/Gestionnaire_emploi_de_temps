@@ -29,7 +29,7 @@ export function ListeFavoris() {
             <Link href={`/programme/${f.groupeId}`} className="min-w-0 flex-1 p-4">
               <span className="block truncate font-semibold text-text">{f.nom}</span>
               <span className="block truncate text-xs text-text-muted">
-                {f.ufrSigle} · {f.filiere} · {f.niveau}
+                {f.ufrSigle} · {f.departement} · {f.niveau}
                 {f.anneeAcademique ? ` · ${f.anneeAcademique}` : ""}
               </span>
             </Link>

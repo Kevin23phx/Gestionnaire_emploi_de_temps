@@ -59,9 +59,9 @@ export interface UfrAvecGestionnaire extends Ufr {
   gestionnaire: { identifiant: string; active: boolean } | null;
 }
 
-// [V3.2] FR-REF-20 : département officiel d'un établissement — ce que le
-// projet appelle « filière » côté groupe. Référentiel réel de l'UJKZ
-// (53 entrées), et non plus une liste déduite des groupes déjà saisis.
+// [V3.2] FR-REF-20 : département officiel d'un établissement — référentiel
+// réel de l'UJKZ (53 entrées), et non plus une liste déduite des groupes
+// déjà saisis.
 export interface Departement {
   id: string;
   libelle: string;
@@ -71,7 +71,9 @@ export interface Departement {
 export interface Groupe {
   id: string;
   nom: string; // ex. "L3 INFO - Groupe A"
-  filiere: string;
+  // [V5] Nommé "departement" — c'était "filiere" avant, ce qui entretenait
+  // une confusion avec le type `Departement` ci-dessus.
+  departement: string;
   niveau: string;
   // FR-REF-12 : année EN COURS de ce groupe précis (ex. "2025-2026").
   // Une promotion (L1→L2) se fait en créant un nouveau Groupe pour la
@@ -193,7 +195,7 @@ export interface ProgrammePublic {
   groupe: {
     id: string;
     nom: string;
-    filiere: string;
+    departement: string;
     niveau: string;
     anneeAcademique: string;
     ufr: Ufr;
@@ -212,7 +214,7 @@ export interface ProgrammePublic {
 export interface GroupePublic {
   id: string;
   nom: string;
-  filiere: string;
+  departement: string;
   niveau: string;
   anneeAcademique: string;
   nbCreneaux: number;
@@ -224,7 +226,7 @@ export interface GroupePublic {
 export interface Favori {
   groupeId: string;
   nom: string;
-  filiere: string;
+  departement: string;
   niveau: string;
   // Optionnel : les favoris enregistrés avant [V3.3] ne l'ont pas, et un
   // favori déjà posé sur l'appareil d'un visiteur ne doit pas devenir

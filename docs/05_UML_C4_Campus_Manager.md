@@ -27,7 +27,7 @@ graph TB
     Push[["Service Web Push du navigateur"]]
     CF[["CampusFaso<br/>(hors périmètre, interopérabilité future)"]]
 
-    Visiteur -->|"cherche un programme (UFR → filière → niveau → groupe), sans compte"| CM
+    Visiteur -->|"cherche un programme (UFR → département → niveau → groupe), sans compte"| CM
     Scolarite -->|gère le référentiel et l'emploi du temps de son UFR| CM
     Admin -->|crée les UFR et gestionnaires, supervise en lecture| CM
     CM -->|"flux calendrier abonné, relu périodiquement par le fournisseur"| Agenda
@@ -51,7 +51,7 @@ graph LR
     end
 
     subgraph "Cas d'usage — Campus Manager V3 programme public"
-        UP1(["Rechercher un programme<br/>UFR → filière → niveau → groupe"])
+        UP1(["Rechercher un programme<br/>UFR → département → niveau → groupe"])
         UP2(["Consulter un programme<br/>semaine par semaine"])
         UP3(["Mettre un programme en favori"])
         UP4(["Abonner son agenda personnel"])
@@ -187,11 +187,11 @@ sequenceDiagram
     UI->>PB: GET /api/public/ufrs
     PB-->>UI: Les 5 UFR
     Vis->>UI: Choisit UFR/SEA
-    UI->>PB: GET /api/public/filieres?ufr=sea
-    PB->>DB: Filières distinctes des groupes de cette UFR
+    UI->>PB: GET /api/public/departements?ufr=sea
+    PB->>DB: Départements distincts des groupes de cette UFR
     PB-->>UI: Informatique, Mathématiques, Physique…
     Vis->>UI: Choisit Informatique, puis L2
-    UI->>PB: GET /api/public/groupes?ufr=sea&filiere=…&niveau=L2
+    UI->>PB: GET /api/public/groupes?ufr=sea&departement=…&niveau=L2
     PB-->>UI: Groupe A, Groupe B (cascade FR-PUB-02)
     Vis->>UI: Choisit Groupe A
     UI->>PB: GET /api/public/programme/{groupe}?semaine=…

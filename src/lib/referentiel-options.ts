@@ -5,9 +5,9 @@
  * Retour du porteur de projet : « je veux une liste déroulante de telle
  * sorte que le gestionnaire sélectionne au lieu de saisir ». Saisir
  * « informatique », « Informatique » et « INFO » à trois semaines
- * d'intervalle crée trois filières distinctes dans la cascade publique
+ * d'intervalle crée trois départements distincts dans la cascade publique
  * (FR-PUB-02), et l'étudiant se retrouve devant trois entrées pour une
- * seule filière réelle. La liste déroulante n'est donc pas un confort de
+ * seul département réel. La liste déroulante n'est donc pas un confort de
  * saisie : c'est ce qui garde la cascade lisible.
  */
 
