@@ -33,3 +33,19 @@ export function anneesAcademiques(reference = new Date()): string[] {
 
 /** Valeur sentinelle de l'option « + Autre » d'une liste déroulante. */
 export const AUTRE = "__autre__";
+
+/**
+ * [V6] Niveau atteint l'année suivante (FR-REF-12). L3 et M2 n'ont pas
+ * d'entrée : fin de cycle, il n'existe pas de "L4" — c'est là que
+ * s'arrête la promotion automatique d'un groupe, comme un jury de fin de
+ * cycle statue sur le diplôme plutôt que sur un passage. Dupliqué côté
+ * backend (referentiel/services/groupes.py::NIVEAU_SUIVANT), qui reste la
+ * source de vérité en cas de désaccord.
+ */
+export const NIVEAU_SUIVANT: Record<string, string> = { L1: "L2", L2: "L3", M1: "M2" };
+
+/** Année académique suivant celle donnée ("2026-2027" -> "2027-2028"). */
+export function anneeAcademiqueSuivante(anneeAcademique: string): string {
+  const [debut, fin] = anneeAcademique.split("-").map(Number);
+  return `${debut + 1}-${fin + 1}`;
+}

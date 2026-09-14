@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Check, Plus, X } from "lucide-react";
+import { AlertTriangle, ArrowUpCircle, Check, Plus, X } from "lucide-react";
 import type { Groupe } from "@/lib/types";
 import { GroupeFormModal } from "@/components/groupes/GroupeFormModal";
+import { PassagePromotionModal } from "@/components/groupes/PassagePromotionModal";
 import { BarreFiltres } from "@/components/filtres/BarreFiltres";
 import { apiFetch } from "@/lib/api";
 import { correspond, useFiltresUrl, valeursDistinctes } from "@/lib/filtres";
+import { anneesAcademiques } from "@/lib/referentiel-options";
 
 // [V3.1] L'effectif est une valeur saisie, plus le résultat d'un import
 // nominatif d'étudiants (section supprimée). Il est donc modifiable
@@ -17,6 +19,7 @@ import { correspond, useFiltresUrl, valeursDistinctes } from "@/lib/filtres";
 export default function GroupesPage() {
   const [groupes, setGroupes] = useState<Groupe[] | null>(null);
   const [modalOuvert, setModalOuvert] = useState(false);
+  const [passageOuvert, setPassageOuvert] = useState(false);
   const [enEdition, setEnEdition] = useState<string | null>(null);
   const [valeurEdition, setValeurEdition] = useState("");
   const [erreur, setErreur] = useState<string | null>(null);
@@ -26,6 +29,20 @@ export default function GroupesPage() {
     apiFetch("/groupes")
       .then((r) => r.json())
       .then((data) => setGroupes(data.groupes));
+  }, []);
+
+  // [V6] Retour d'usage : après un passage à l'année supérieure, le groupe
+  // source (historique, jamais supprimé — cf. FR-REF-12) restait mélangé
+  // avec les groupes actifs, et la liste devient vite illisible avec
+  // plusieurs années accumulées. Correctif choisi : ne PAS perdre
+  // l'historique (l'effectif d'une année passée doit rester consultable),
+  // mais présenter par défaut uniquement l'année en cours — le filtre
+  // "Année" existe déjà, on se contente de le préremplir une fois au
+  // premier chargement. Un Gestionnaire qui veut voir une année passée
+  // choisit "Tous" ou une année précise, comme avant.
+  useEffect(() => {
+    if (!valeur("annee")) definir("annee", anneesAcademiques()[1]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // FR-FILT-06 : filtrage côté client, à dessein. Les groupes d'une seule
@@ -83,13 +100,22 @@ export default function GroupesPage() {
             {groupes ? ` — ${groupes.length} groupes.` : "..."}
           </p>
         </div>
-        <button
-          onClick={() => setModalOuvert(true)}
-          className="flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover"
-        >
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          Nouveau groupe
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setPassageOuvert(true)}
+            className="flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-muted"
+          >
+            <ArrowUpCircle className="h-4 w-4" aria-hidden="true" />
+            Passage à l&apos;année supérieure
+          </button>
+          <button
+            onClick={() => setModalOuvert(true)}
+            className="flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover"
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Nouveau groupe
+          </button>
+        </div>
       </div>
 
       <BarreFiltres
@@ -139,6 +165,14 @@ export default function GroupesPage() {
               <tr key={groupe.id} className="border-t border-border">
                 <td className="px-4 py-2 font-medium text-text">
                   {groupe.nom} <span className="font-normal text-text-subtle">({groupe.anneeAcademique})</span>
+                  {groupe.aDejaEteSuccede ? (
+                    <span
+                      className="ml-2 rounded-full bg-status-success-bg px-2 py-0.5 text-xs font-normal text-status-success"
+                      title="Un groupe de l'année suivante a déjà été créé à partir de celui-ci"
+                    >
+                      promu
+                    </span>
+                  ) : null}
                 </td>
                 <td className="px-4 py-2 text-text-muted">{groupe.departement}</td>
                 <td className="px-4 py-2 text-text-muted">{groupe.niveau}</td>
@@ -214,6 +248,22 @@ export default function GroupesPage() {
           onSave={(groupe) => {
             setGroupes((prev) => [...(prev ?? []), groupe]);
             setModalOuvert(false);
+          }}
+        />
+      ) : null}
+
+      {passageOuvert ? (
+        <PassagePromotionModal
+          groupes={tous}
+          onClose={() => setPassageOuvert(false)}
+          onPromu={() => {
+            // Recharge plutôt que de fusionner localement : les groupes
+            // sources sont désormais `aDejaEteSuccede`, et c'est plus simple
+            // de relire le référentiel que de recalculer ce marquage ici.
+            apiFetch("/groupes")
+              .then((r) => r.json())
+              .then((data) => setGroupes(data.groupes));
+            setPassageOuvert(false);
           }}
         />
       ) : null}

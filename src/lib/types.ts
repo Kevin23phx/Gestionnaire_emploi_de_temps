@@ -85,6 +85,9 @@ export interface Groupe {
   // système n'en consommait que le nombre, comparé à la capacité d'une
   // salle (RM-02). N'est donc plus vérifiable — il vaut ce qui a été saisi.
   effectif: number;
+  // [V6] true si un Groupe existe déjà avec `promuDe` pointant sur celui-ci
+  // — pilote l'affichage du bouton de passage (FR-REF-12 enfin implémentée).
+  aDejaEteSuccede: boolean;
 }
 
 export interface Enseignant {
