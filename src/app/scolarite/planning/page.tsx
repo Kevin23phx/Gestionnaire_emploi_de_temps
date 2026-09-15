@@ -105,7 +105,7 @@ export default function ListeProgrammesPage() {
           section Groupes avant d&apos;ouvrir un programme.
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filtres.map((groupe) => {
             const nbCreneaux = creneaux.filter((c) => c.groupe.id === groupe.id).length;
             return (

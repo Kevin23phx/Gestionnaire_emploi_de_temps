@@ -305,7 +305,7 @@ export default function ProgrammeGroupePage() {
         </button>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_320px]">
         <div className="order-2 xl:order-1">
           <ScheduleWeekGrid
             creneaux={creneauxDuGroupe}

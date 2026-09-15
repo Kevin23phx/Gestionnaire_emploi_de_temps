@@ -26,7 +26,7 @@ export default async function SupervisionAdminPage() {
     <div>
       <h1 className="mb-6 text-xl font-bold text-text">Supervision — tous les établissements</h1>
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-3">
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="rounded-xl border border-border bg-surface p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-text-subtle">
             Taux d&apos;occupation des salles

@@ -8,7 +8,14 @@
 import type { ConflitDetecte, Creneau } from "./types";
 
 function chevauchent(a: Creneau, b: Creneau): boolean {
-  if (a.jour !== b.jour) return false;
+  // [V4] Comparaison sur la DATE, pas le jour de semaine — décalque du
+  // moteur backend (conflict_engine/services.py::_chevauchent). Un jeudi
+  // de telle semaine et le jeudi de la semaine suivante partagent le même
+  // `jour` ("jeudi") mais sont deux dates distinctes : sans ce correctif,
+  // programmer le même cours/enseignant deux semaines de suite déclenchait
+  // à tort une "double affectation", alors que c'est précisément ainsi que
+  // fonctionne un cours qui se répète chaque semaine.
+  if (a.date !== b.date) return false;
   return a.heureDebut < b.heureFin && b.heureDebut < a.heureFin;
 }
 

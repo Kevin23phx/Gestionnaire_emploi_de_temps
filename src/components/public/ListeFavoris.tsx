@@ -20,7 +20,7 @@ export function ListeFavoris() {
         <Star className="h-4 w-4 fill-status-warning text-status-warning" aria-hidden="true" />
         Vos programmes
       </h2>
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {favoris.map((f) => (
           <div
             key={f.groupeId}

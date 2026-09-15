@@ -135,9 +135,9 @@ export function Sidebar({
           <LogOut className="h-4 w-4" aria-hidden="true" />
           Déconnexion
         </button>
-        <div className="mt-3 flex items-center gap-2 border-t border-border px-3 pt-3">
+        <div className="mt-3 flex min-w-0 items-center gap-2 border-t border-border px-3 pt-3">
           <Avatar nom={nom} prenom={prenom} />
-          <span className="truncate text-sm text-text">
+          <span className="min-w-0 truncate text-sm text-text">
             {prenom} {nom}
           </span>
         </div>

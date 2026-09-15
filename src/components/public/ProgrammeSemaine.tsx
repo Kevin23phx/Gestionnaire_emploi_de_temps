@@ -115,7 +115,7 @@ export function ProgrammeSemaine({
         // dessous : sur téléphone, six colonnes rendraient chaque intitulé
         // illisible (cahier des charges §1.4 — le parc est dominé par
         // l'Android d'entrée de gamme).
-        <div className="grid gap-3 p-3 md:grid-cols-3 lg:grid-cols-6">
+        <div className="grid grid-cols-1 gap-3 p-3 md:grid-cols-3 lg:grid-cols-6">
           {parJour.map(({ jour, date, seances: duJour }) => (
             <section key={jour} className={duJour.length === 0 ? "hidden md:block" : ""}>
               <h3
