@@ -131,7 +131,7 @@ export function PassagePromotionModal({
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
       <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-border bg-surface p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-text">Passage à l&apos;année supérieure</h2>
+          <h2 className="text-lg font-bold text-text">Progression des promotions</h2>
           <button onClick={onClose} className="rounded-lg p-1 hover:bg-surface-muted" aria-label="Fermer">
             <X className="h-5 w-5 text-text-muted" aria-hidden="true" />
           </button>
@@ -183,7 +183,7 @@ export function PassagePromotionModal({
                     <th className="px-3 py-2 font-medium">
                       <span className="sr-only">Inclure</span>
                     </th>
-                    <th className="px-3 py-2 font-medium">Niveau</th>
+                    <th className="px-3 py-2 font-medium">Parcours</th>
                     <th className="px-3 py-2 font-medium">Nouveau nom</th>
                     <th className="px-3 py-2 font-medium">Effectif</th>
                   </tr>

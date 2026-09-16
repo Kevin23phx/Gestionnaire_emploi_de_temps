@@ -185,7 +185,7 @@ export function GroupeFormModal({
           <div className="flex gap-3">
             <div className="flex-1">
               <label htmlFor="groupe-niveau" className="text-sm font-medium text-text">
-                Niveau
+                Parcours
               </label>
               <select
                 id="groupe-niveau"

@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, X } from "lucide-react";
+import { RefreshCw, Search, X } from "lucide-react";
 
 // [V3] FR-FILT-01 — la barre de recherche et de filtres, partagée par tous
 // les écrans de référentiel. Un composant unique plutôt qu'une barre par
@@ -24,6 +24,9 @@ export function BarreFiltres({
   resultats,
   total,
   extra,
+  manuel,
+  onActualiser,
+  peutActualiser = true,
 }: {
   placeholder: string;
   filtres?: Filtre[];
@@ -34,6 +37,17 @@ export function BarreFiltres({
   resultats: number;
   total: number;
   extra?: React.ReactNode;
+  // [2026-09] Mode "manuel" (FR-FILT gestionnaire) : `valeur`/`definir`
+  // reçus ici sont alors liés à un brouillon local (cf. useFiltresManuel),
+  // jamais directement à l'URL — c'est le clic sur "Actualiser" qui
+  // déclenche le chargement, pas la saisie.
+  manuel?: boolean;
+  onActualiser?: () => void;
+  // [2026-09] Retour des gestionnaires : sur certains écrans, Actualiser ne
+  // doit pas être cliquable tant que les filtres obligatoires de la page ne
+  // sont pas tous remplis — la page appelante décide lesquels le sont et
+  // passe le résultat ici (true par défaut : pas de filtre obligatoire).
+  peutActualiser?: boolean;
 }) {
   return (
     <div className="mb-4 flex flex-col gap-3">
@@ -72,6 +86,17 @@ export function BarreFiltres({
         ))}
 
         {extra}
+
+        {manuel ? (
+          <button
+            onClick={onActualiser}
+            disabled={!peutActualiser}
+            className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+            Actualiser
+          </button>
+        ) : null}
 
         {actifs > 0 ? (
           <button

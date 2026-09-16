@@ -3,18 +3,27 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
-import type { Creneau, Groupe, Salle, UfrAvecGestionnaire, UniteEnseignement } from "@/lib/types";
+import { ArrowLeft, Plus } from "lucide-react";
+import type { Creneau, Departement, Groupe, UfrAvecGestionnaire, UniteEnseignement } from "@/lib/types";
 import { apiFetch } from "@/lib/api";
 
 // [V3.1] L'onglet « Étudiants » a disparu avec le référentiel nominatif :
-// l'effectif d'un groupe est un nombre, visible dans l'onglet Groupes.
-type Onglet = "groupes" | "salles" | "cours" | "planning";
+// l'effectif d'un groupe est un nombre, visible dans l'onglet Promotions.
+//
+// [2026-09] Plus d'onglet « Salles » ici : les salles ne sont plus
+// rattachées à une UFR (exception ciblée à INT-07, cf.
+// 03_Contrat_Invariants_Campus_Manager.md [V7]) — un référentiel unique,
+// partagé par toute l'université, n'a plus sa place dans la fiche d'UN
+// établissement.
+type Onglet = "groupes" | "cours" | "departements" | "planning";
 
 const ONGLETS: { id: Onglet; label: string }[] = [
-  { id: "groupes", label: "Groupes" },
-  { id: "salles", label: "Salles" },
+  { id: "groupes", label: "Promotions" },
   { id: "cours", label: "Cours" },
+  // [2026-09] Retour des gestionnaires : l'Admin doit pouvoir créer un
+  // département si le Gestionnaire de l'UFR n'est pas disponible (exception
+  // ciblée à INV-11, cf. 03_Contrat_Invariants_Campus_Manager.md [V7]).
+  { id: "departements", label: "Départements" },
   { id: "planning", label: "Planning" },
 ];
 
@@ -27,19 +36,46 @@ export default function UfrDetailAdminPage() {
   const [onglet, setOnglet] = useState<Onglet>("groupes");
   const [ufr, setUfr] = useState<UfrAvecGestionnaire | null>(null);
   const [groupes, setGroupes] = useState<Groupe[] | null>(null);
-  const [salles, setSalles] = useState<Salle[] | null>(null);
   const [cours, setCours] = useState<UniteEnseignement[] | null>(null);
   const [creneaux, setCreneaux] = useState<Creneau[] | null>(null);
+  const [departements, setDepartements] = useState<Departement[] | null>(null);
+  const [nouveauDepartement, setNouveauDepartement] = useState("");
+  const [erreurDepartement, setErreurDepartement] = useState<string | null>(null);
+  const [enCoursDepartement, setEnCoursDepartement] = useState(false);
+
+  function chargerDepartements() {
+    apiFetch(`/departements?ufrId=${id}`).then((r) => r.json()).then((data) => setDepartements(data.departements));
+  }
 
   useEffect(() => {
     apiFetch("/ufrs")
       .then((r) => r.json())
       .then((data) => setUfr((data.ufrs as UfrAvecGestionnaire[]).find((u) => u.id === id) ?? null));
     apiFetch(`/groupes?ufrId=${id}`).then((r) => r.json()).then((data) => setGroupes(data.groupes));
-    apiFetch(`/salles?ufrId=${id}`).then((r) => r.json()).then((data) => setSalles(data.salles));
     apiFetch(`/cours?ufrId=${id}`).then((r) => r.json()).then((data) => setCours(data.cours));
     apiFetch(`/creneaux?ufrId=${id}`).then((r) => r.json()).then((data) => setCreneaux(data.creneaux));
+    chargerDepartements();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  async function creerDepartement() {
+    if (!nouveauDepartement.trim()) return;
+    setErreurDepartement(null);
+    setEnCoursDepartement(true);
+    const reponse = await apiFetch("/departements", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ libelle: nouveauDepartement, ufrId: id }),
+    });
+    const data = await reponse.json();
+    setEnCoursDepartement(false);
+    if (!reponse.ok) {
+      setErreurDepartement(data.erreur ?? "Impossible de créer le département.");
+      return;
+    }
+    setNouveauDepartement("");
+    chargerDepartements();
+  }
 
   return (
     <div>
@@ -77,25 +113,50 @@ export default function UfrDetailAdminPage() {
       {onglet === "groupes" ? (
         <TableGeneric
           donnees={groupes}
-          colonnes={["Nom", "Département", "Niveau", "Année", "Effectif"]}
+          colonnes={["Nom", "Département", "Parcours", "Année", "Effectif"]}
           lignes={(groupes ?? []).map((g) => [g.nom, g.departement, g.niveau, g.anneeAcademique, `${g.effectif}`])}
-        />
-      ) : null}
-
-      {onglet === "salles" ? (
-        <TableGeneric
-          donnees={salles}
-          colonnes={["Nom", "Bâtiment", "Capacité", "Type", "Structure"]}
-          lignes={(salles ?? []).map((s) => [s.nom, s.batiment, `${s.capacite}`, s.typeUsage, s.structureGestionnaire])}
         />
       ) : null}
 
       {onglet === "cours" ? (
         <TableGeneric
           donnees={cours}
-          colonnes={["Code", "Intitulé", "Niveau"]}
-          lignes={(cours ?? []).map((c) => [c.code, c.intitule, c.niveau])}
+          colonnes={["Code", "Intitulé"]}
+          lignes={(cours ?? []).map((c) => [c.code, c.intitule])}
         />
+      ) : null}
+
+      {onglet === "departements" ? (
+        <div className="flex flex-col gap-4">
+          <div className="flex items-end gap-2">
+            <label className="flex flex-1 flex-col gap-1">
+              <span className="text-xs font-medium text-text-muted">Nouveau département</span>
+              <input
+                type="text"
+                value={nouveauDepartement}
+                onChange={(e) => setNouveauDepartement(e.target.value)}
+                placeholder="ex : Informatique"
+                className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text"
+              />
+            </label>
+            <button
+              onClick={creerDepartement}
+              disabled={enCoursDepartement || !nouveauDepartement.trim()}
+              className="flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              {enCoursDepartement ? "Création..." : "Ajouter"}
+            </button>
+          </div>
+          {erreurDepartement ? (
+            <p className="rounded-lg bg-status-danger-bg px-3 py-2 text-sm text-status-danger">{erreurDepartement}</p>
+          ) : null}
+          <TableGeneric
+            donnees={departements}
+            colonnes={["Libellé"]}
+            lignes={(departements ?? []).map((d) => [d.libelle])}
+          />
+        </div>
       ) : null}
 
       {onglet === "planning" ? (

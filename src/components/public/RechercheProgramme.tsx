@@ -2,68 +2,123 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronRight, Loader2, Search } from "lucide-react";
+import { Loader2, RefreshCw, Search } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import type { GroupePublic, Ufr } from "@/lib/types";
 
-// [V3] FR-PUB-02 — cascade UFR → département → niveau → groupe.
+// [2026-09] Retour des gestionnaires post-présentation : la cascade n'est
+// plus un assistant pas-à-pas (un étage à la fois, qui avance tout seul dès
+// qu'on clique) — c'est désormais une zone de SÉLECTION (les 4 listes
+// déroulantes, toutes visibles à la fois, horizontalement) séparée d'une
+// zone d'AFFICHAGE (les résultats), sur le modèle d'un écran de filtres
+// classique. Rien ne s'affiche tant que les 4 sélections ne sont pas
+// complètes ET qu'on n'a pas cliqué sur "Actualiser" — pas de chargement
+// intermédiaire, pas de résultat partiel.
 //
-// Quatre étages et non deux : « UFR + niveau », proposé au départ, ne
-// désigne pas un programme. À l'échelle d'une UFR de l'UJKZ, « UFR/SEA, L1 »
-// recouvre des dizaines de groupes répartis sur plusieurs départements — le
-// département est l'échelon qui rend la sélection déterministe (RM-09).
-//
-// Chaque étage n'affiche que des valeurs réellement présentes dans le
-// référentiel compte tenu des choix amont : un visiteur ne peut donc pas
-// construire une combinaison vide en suivant l'interface.
-
-type Etage = "ufr" | "departement" | "niveau" | "groupe";
+// FR-PUB-02 reste respectée malgré la mise à plat : chaque liste déroulante
+// ne propose que des valeurs qui mènent réellement quelque part compte tenu
+// des étages précédents (elle est désactivée et vide tant que son
+// prérequis n'est pas choisi) — un visiteur ne peut toujours pas construire
+// une combinaison vide.
 
 export function RechercheProgramme() {
   const router = useRouter();
+  const [annees, setAnnees] = useState<string[] | null>(null);
   const [ufrs, setUfrs] = useState<Ufr[] | null>(null);
   const [departements, setDepartements] = useState<string[] | null>(null);
   const [niveaux, setNiveaux] = useState<string[] | null>(null);
-  const [groupes, setGroupes] = useState<GroupePublic[] | null>(null);
 
-  const [ufr, setUfr] = useState<Ufr | null>(null);
-  const [departement, setDepartement] = useState<string | null>(null);
-  const [niveau, setNiveau] = useState<string | null>(null);
+  const [annee, setAnnee] = useState("");
+  const [ufrId, setUfrId] = useState("");
+  const [departement, setDepartement] = useState("");
+  const [niveau, setNiveau] = useState("");
+
+  const [resultatsPrets, setResultatsPrets] = useState(false);
+  const [chargementResultats, setChargementResultats] = useState(false);
+  const [groupes, setGroupes] = useState<GroupePublic[] | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
 
-  const etage: Etage = !ufr ? "ufr" : !departement ? "departement" : !niveau ? "niveau" : "groupe";
+  const toutSelectionne = Boolean(annee && ufrId && departement && niveau);
 
   useEffect(() => {
-    apiFetch("/public/ufrs")
+    apiFetch("/public/annees")
       .then((r) => r.json())
-      .then((d) => setUfrs(d.ufrs))
-      .catch(() => setErreur("Impossible de charger la liste des UFR. Vérifiez votre connexion."));
+      .then((d) => setAnnees(d.annees))
+      .catch(() => setErreur("Impossible de charger les années académiques. Vérifiez votre connexion."));
   }, []);
 
-  // Les réinitialisations d'étage (`setDepartements(null)`...) sont faites dans
-  // les gestionnaires de clic ci-dessous, jamais ici : appeler setState
-  // au corps d'un effet déclenche un rendu en cascade, et surtout le geste
-  // qui invalide un étage est bien le clic, pas le chargement qui s'ensuit.
   useEffect(() => {
-    if (!ufr) return;
-    apiFetch(`/public/departements?ufrId=${encodeURIComponent(ufr.id)}`)
+    if (!annee) return;
+    apiFetch(`/public/ufrs?anneeAcademique=${encodeURIComponent(annee)}`)
+      .then((r) => r.json())
+      .then((d) => setUfrs(d.ufrs));
+  }, [annee]);
+
+  useEffect(() => {
+    if (!annee || !ufrId) return;
+    const params = new URLSearchParams({ ufrId, anneeAcademique: annee });
+    apiFetch(`/public/departements?${params.toString()}`)
       .then((r) => r.json())
       .then((d) => setDepartements(d.departements));
-  }, [ufr]);
+  }, [annee, ufrId]);
 
   useEffect(() => {
-    if (!ufr || !departement) return;
-    apiFetch(`/public/niveaux?ufrId=${encodeURIComponent(ufr.id)}&departement=${encodeURIComponent(departement)}`)
+    if (!annee || !ufrId || !departement) return;
+    const params = new URLSearchParams({ ufrId, departement, anneeAcademique: annee });
+    apiFetch(`/public/niveaux?${params.toString()}`)
       .then((r) => r.json())
       .then((d) => setNiveaux(d.niveaux));
-  }, [ufr, departement]);
+  }, [annee, ufrId, departement]);
 
-  useEffect(() => {
-    if (!ufr || !departement || !niveau) return;
-    const params = new URLSearchParams({ ufrId: ufr.id, departement, niveau });
+  // Les réinitialisations des étages avals se font ici, dans le geste qui
+  // les invalide (le clic), jamais dans le corps d'un effet : sans ça,
+  // choisir une nouvelle Année afficherait un instant les Établissements de
+  // la précédente, le temps que le nouvel appel réseau revienne.
+  function changerAnnee(valeur: string) {
+    setAnnee(valeur);
+    setUfrs(null);
+    setUfrId("");
+    setDepartements(null);
+    setDepartement("");
+    setNiveaux(null);
+    setNiveau("");
+    setResultatsPrets(false);
+    setGroupes(null);
+  }
+
+  function changerUfr(valeur: string) {
+    setUfrId(valeur);
+    setDepartements(null);
+    setDepartement("");
+    setNiveaux(null);
+    setNiveau("");
+    setResultatsPrets(false);
+    setGroupes(null);
+  }
+
+  function changerDepartement(valeur: string) {
+    setDepartement(valeur);
+    setNiveaux(null);
+    setNiveau("");
+    setResultatsPrets(false);
+    setGroupes(null);
+  }
+
+  function changerNiveau(valeur: string) {
+    setNiveau(valeur);
+    setResultatsPrets(false);
+    setGroupes(null);
+  }
+
+  function actualiser() {
+    if (!toutSelectionne) return;
+    setResultatsPrets(true);
+    setChargementResultats(true);
+    const params = new URLSearchParams({ ufrId, departement, niveau, anneeAcademique: annee });
     apiFetch(`/public/groupes?${params.toString()}`)
       .then((r) => r.json())
       .then((d: { groupes: GroupePublic[] }) => {
+        setChargementResultats(false);
         // Un seul groupe possible : inutile de faire cliquer une fois de
         // plus sur une liste à un élément.
         if (d.groupes.length === 1) {
@@ -72,43 +127,6 @@ export function RechercheProgramme() {
         }
         setGroupes(d.groupes);
       });
-  }, [ufr, departement, niveau, router]);
-
-  // Choisir une valeur invalide tout ce qui en dépend : sans cela, revenir
-  // en arrière puis choisir une autre UFR afficherait un instant les
-  // départements de la précédente.
-  function choisirUfr(id: string) {
-    setUfr(ufrs?.find((u) => u.id === id) ?? null);
-    setDepartements(null);
-    setDepartement(null);
-    setNiveaux(null);
-    setNiveau(null);
-    setGroupes(null);
-  }
-
-  function choisirDepartement(valeur: string) {
-    setDepartement(valeur);
-    setNiveaux(null);
-    setNiveau(null);
-    setGroupes(null);
-  }
-
-  function choisirNiveau(valeur: string) {
-    setNiveau(valeur);
-    setGroupes(null);
-  }
-
-  function revenirA(cible: Etage) {
-    if (cible === "ufr") {
-      setUfr(null);
-      setDepartement(null);
-      setNiveau(null);
-    } else if (cible === "departement") {
-      setDepartement(null);
-      setNiveau(null);
-    } else if (cible === "niveau") {
-      setNiveau(null);
-    }
   }
 
   if (erreur) {
@@ -120,146 +138,133 @@ export function RechercheProgramme() {
   }
 
   return (
-    <div className="w-full max-w-2xl">
-      {/* Fil d'Ariane : la cascade doit pouvoir se remonter, sinon un
-          mauvais choix au 1er étage oblige à recharger la page. */}
-      {ufr ? (
-        <nav className="mb-4 flex flex-wrap items-center gap-1 text-sm text-text-muted">
-          <button onClick={() => revenirA("ufr")} className="rounded px-2 py-1 font-medium text-brand hover:bg-brand-light">
-            {ufr.sigleAffiche}
-          </button>
-          {departement ? (
-            <>
-              <ChevronRight className="h-3.5 w-3.5 text-text-subtle" aria-hidden="true" />
-              <button onClick={() => revenirA("departement")} className="rounded px-2 py-1 font-medium text-brand hover:bg-brand-light">
-                {departement}
-              </button>
-            </>
-          ) : null}
-          {niveau ? (
-            <>
-              <ChevronRight className="h-3.5 w-3.5 text-text-subtle" aria-hidden="true" />
-              <button onClick={() => revenirA("niveau")} className="rounded px-2 py-1 font-medium text-brand hover:bg-brand-light">
-                {niveau}
-              </button>
-            </>
-          ) : null}
-        </nav>
-      ) : null}
+    <div className="w-full max-w-3xl">
+      {/* Zone de sélection : les 4 filtres, horizontaux, toujours visibles. */}
+      <div className="mb-4 flex flex-wrap items-end gap-2 rounded-xl border border-border bg-surface p-4">
+        <Champ label="Année académique">
+          <select
+            value={annee}
+            onChange={(e) => changerAnnee(e.target.value)}
+            disabled={annees === null}
+            className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text disabled:opacity-60"
+          >
+            <option value="">Choisir...</option>
+            {(annees ?? []).map((a) => (
+              <option key={a} value={a}>
+                {a}
+              </option>
+            ))}
+          </select>
+        </Champ>
 
-      {/* [V3.2] « Établissement » et non « UFR » : l'UJKZ compte 6 instituts
-          et 1 école doctorale en plus de ses 5 UFR. Un étudiant de l'IBAM à
-          qui l'on demande « votre UFR » ne sait pas quoi répondre — et c'est
-          la toute première étape du parcours. */}
-      {etage === "ufr" ? (
-        <Etape titre="Votre établissement" numero={1}>
-          <Choix
-            valeurs={ufrs?.map((u) => ({ cle: u.id, principal: u.sigleAffiche, secondaire: u.nom }))}
-            onChoisir={choisirUfr}
-          />
-        </Etape>
-      ) : null}
+        {/* [V3.2] « Établissement » et non « UFR » : l'UJKZ compte 6 instituts
+            et 1 école doctorale en plus de ses 5 UFR. */}
+        <Champ label="Établissement">
+          <select
+            value={ufrId}
+            onChange={(e) => changerUfr(e.target.value)}
+            disabled={!annee || ufrs === null}
+            className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text disabled:opacity-60"
+          >
+            <option value="">Choisir...</option>
+            {(ufrs ?? []).map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.sigleAffiche}
+              </option>
+            ))}
+          </select>
+        </Champ>
 
-      {etage === "departement" ? (
-        <Etape titre="Votre département" numero={2}>
-          <Choix
-            valeurs={departements?.map((d) => ({ cle: d, principal: d }))}
-            onChoisir={choisirDepartement}
-            vide="Aucun département n'est encore enregistré pour cet établissement."
-          />
-        </Etape>
-      ) : null}
+        <Champ label="Département">
+          <select
+            value={departement}
+            onChange={(e) => changerDepartement(e.target.value)}
+            disabled={!ufrId || departements === null}
+            className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text disabled:opacity-60"
+          >
+            <option value="">Choisir...</option>
+            {(departements ?? []).map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </select>
+        </Champ>
 
-      {etage === "niveau" ? (
-        <Etape titre="Votre niveau" numero={3}>
-          <Choix
-            valeurs={niveaux?.map((n) => ({ cle: n, principal: n }))}
-            onChoisir={choisirNiveau}
-            vide="Aucun niveau n'est encore enregistré pour ce département."
-          />
-        </Etape>
-      ) : null}
+        <Champ label="Parcours">
+          <select
+            value={niveau}
+            onChange={(e) => changerNiveau(e.target.value)}
+            disabled={!departement || niveaux === null}
+            className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text disabled:opacity-60"
+          >
+            <option value="">Choisir...</option>
+            {(niveaux ?? []).map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </Champ>
 
-      {etage === "groupe" ? (
-        <Etape titre="Votre groupe" numero={4}>
-          <Choix
-            valeurs={groupes?.map((g) => ({
-              cle: g.id,
-              principal: g.nom,
-              // ERR-07 : distinguer, AVANT de cliquer, un programme rempli
-              // d'un programme encore vide.
-              secondaire:
-                g.nbCreneaux > 0
-                  ? `${g.anneeAcademique} · ${g.nbCreneaux} cours`
-                  : `${g.anneeAcademique} · programme pas encore saisi`,
-            }))}
-            onChoisir={(cle) => router.push(`/programme/${cle}`)}
-            vide="Aucun groupe ne correspond à cette combinaison."
-          />
-        </Etape>
-      ) : null}
-    </div>
-  );
-}
-
-function Etape({ titre, numero, children }: { titre: string; numero: number; children: React.ReactNode }) {
-  return (
-    <section>
-      <div className="mb-3 flex items-center gap-2">
-        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand text-xs font-bold text-white">
-          {numero}
-        </span>
-        <h2 className="text-base font-semibold text-text">{titre}</h2>
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function Choix({
-  valeurs,
-  onChoisir,
-  vide,
-}: {
-  valeurs?: { cle: string; principal: string; secondaire?: string }[];
-  onChoisir: (cle: string) => void;
-  vide?: string;
-}) {
-  if (!valeurs) {
-    return (
-      <div className="flex items-center justify-center gap-2 rounded-xl border border-border bg-surface py-10 text-sm text-text-muted">
-        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-        Chargement...
-      </div>
-    );
-  }
-
-  if (valeurs.length === 0) {
-    // ERR-07 : le dire, plutôt que d'afficher une zone vide dans laquelle le
-    // visiteur croirait que le site est cassé.
-    return (
-      <div className="rounded-xl border border-dashed border-border bg-surface p-6 text-center text-sm text-text-muted">
-        <Search className="mx-auto mb-2 h-5 w-5 text-text-subtle" aria-hidden="true" />
-        {vide ?? "Aucun résultat."}
-      </div>
-    );
-  }
-
-  return (
-    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-      {valeurs.map((v) => (
         <button
-          key={v.cle}
-          onClick={() => onChoisir(v.cle)}
-          className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface p-4 text-left transition-colors hover:border-brand hover:bg-brand-light"
+          onClick={actualiser}
+          disabled={!toutSelectionne}
+          className="flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-40"
         >
-          <span className="min-w-0">
-            <span className="block truncate font-semibold text-text">{v.principal}</span>
-            {v.secondaire ? <span className="block truncate text-xs text-text-muted">{v.secondaire}</span> : null}
-          </span>
-          <ChevronRight className="h-4 w-4 shrink-0 text-text-subtle" aria-hidden="true" />
+          <RefreshCw className="h-4 w-4" aria-hidden="true" />
+          Actualiser
         </button>
-      ))}
+      </div>
+
+      {/* Zone d'affichage : rien tant que les 4 filtres ne sont pas choisis
+          ET qu'Actualiser n'a pas été cliqué. */}
+      {!resultatsPrets ? (
+        <div className="rounded-xl border border-dashed border-border bg-surface p-8 text-center text-sm text-text-muted">
+          <Search className="mx-auto mb-2 h-5 w-5 text-text-subtle" aria-hidden="true" />
+          Choisissez les 4 filtres ci-dessus puis cliquez sur Actualiser pour afficher votre programme.
+        </div>
+      ) : chargementResultats ? (
+        <div className="flex items-center justify-center gap-2 rounded-xl border border-border bg-surface py-10 text-sm text-text-muted">
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+          Chargement...
+        </div>
+      ) : groupes && groupes.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-border bg-surface p-6 text-center text-sm text-text-muted">
+          <Search className="mx-auto mb-2 h-5 w-5 text-text-subtle" aria-hidden="true" />
+          Aucun groupe ne correspond à cette combinaison.
+        </div>
+      ) : groupes ? (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {groupes.map((g) => (
+            <button
+              key={g.id}
+              onClick={() => router.push(`/programme/${g.id}`)}
+              className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface p-4 text-left transition-colors hover:border-brand hover:bg-brand-light"
+            >
+              <span className="min-w-0">
+                <span className="block truncate font-semibold text-text">{g.nom}</span>
+                {/* ERR-07 : distinguer, AVANT de cliquer, un programme rempli
+                    d'un programme encore vide. */}
+                <span className="block truncate text-xs text-text-muted">
+                  {g.nbCreneaux > 0
+                    ? `${g.anneeAcademique} · ${g.nbCreneaux} cours`
+                    : `${g.anneeAcademique} · programme pas encore saisi`}
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+function Champ({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="flex min-w-[160px] flex-1 flex-col gap-1">
+      <span className="text-xs font-medium text-text-muted">{label}</span>
+      {children}
+    </label>
   );
 }

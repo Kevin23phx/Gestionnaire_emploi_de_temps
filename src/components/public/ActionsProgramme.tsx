@@ -40,6 +40,18 @@ function urlCalendrier(groupeId: string): string {
   return typeof window === "undefined" ? base : `${window.location.origin}${base}`;
 }
 
+// [V6] `webcal://` plutôt que de faire coller `https://` à la main : sur
+// iPhone/Mac, un tap sur un lien `webcal://` ouvre directement l'écran
+// d'abonnement de Calendrier, sans jamais passer par une saisie ou un
+// copier-coller manuel. Or iOS refuse silencieusement toute connexion
+// `http://` (non sécurisée) depuis l'app Calendrier — un lien mal collé ou
+// une suggestion de saisie automatique amputée du "s" suffit à produire
+// « Échec de la validation », sans qu'aucun message n'explique pourquoi.
+// `webcal://` élimine le risque à la source : rien à taper, rien à coller.
+function urlWebcal(url: string): string {
+  return url.replace(/^https?:\/\//, "webcal://");
+}
+
 export function ActionsProgramme({ programme }: { programme: ProgrammePublic }) {
   const groupe = programme.groupe;
   const favori = useEstFavori(groupe.id);
@@ -209,6 +221,16 @@ export function ActionsProgramme({ programme }: { programme: ProgrammePublic }) 
               {copie ? "Copié" : "Copier"}
             </button>
           </div>
+
+          {!urlLocale ? (
+            <a
+              href={urlWebcal(url)}
+              className="mt-2 flex items-center justify-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium text-text hover:bg-surface-muted"
+            >
+              <CalendarPlus className="h-4 w-4" aria-hidden="true" />
+              Ouvrir directement dans Calendrier (iPhone/Mac)
+            </a>
+          ) : null}
 
           {urlLocale ? (
             <p className="mt-3 rounded-lg bg-status-warning-bg px-3 py-2 text-xs text-text">

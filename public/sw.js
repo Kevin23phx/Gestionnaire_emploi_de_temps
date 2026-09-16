@@ -3,7 +3,24 @@
 // librairie tierce) pour rester prévisible sur une stack Next.js 16/Turbopack
 // encore très récente ; à faire évoluer (stratégies par route, Web Push) une
 // fois l'API backend branchée.
-const CACHE_NAME = "campus-manager-shell-v1";
+//
+// [2026-09] v2 — correctif d'un bug de gel signalé par les gestionnaires
+// ("le site plante, il faut actualiser") : la v1 interceptait TOUTES les
+// requêtes GET, y compris chaque appel à l'API (/api/...). Sur un simple
+// aléa réseau (la cible visée par le cahier des charges §1.4), `fetch()`
+// rejette ; le repli `caches.match()` ne trouve rien pour une requête
+// jamais mise en cache (données authentifiées, changeantes) et renvoie
+// `undefined` — ce qui fait échouer la requête sans jamais se résoudre.
+// Comme la quasi-totalité des écrans ne rattrape pas cet échec, l'état
+// React reste bloqué sur "Chargement..." indéfiniment : c'est le gel
+// observé, qu'un rechargement complet de la page (nouvelles requêtes,
+// hors de la chaîne de promesses bloquée) résout en apparence "par
+// hasard". Les appels /api/ ne sont donc plus interceptés du tout : ils
+// suivent le comportement réseau normal du navigateur, avec une vraie
+// erreur que l'écran appelant peut attraper. Le nom de cache change aussi
+// (v1 → v2) pour que les Service Workers déjà installés purgent l'ancien
+// cache dès leur prochaine activation (cf. l'écouteur "activate").
+const CACHE_NAME = "campus-manager-shell-v2";
 const SHELL_URLS = ["/", "/connexion", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
@@ -28,9 +45,11 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
-// Stratégie : réseau d'abord, repli sur le cache si hors-ligne (GET uniquement).
+// Stratégie : réseau d'abord, repli sur le cache si hors-ligne (GET
+// uniquement, et jamais l'API — voir la note de version ci-dessus).
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+  if (new URL(event.request.url).pathname.startsWith("/api/")) return;
 
   event.respondWith(
     fetch(event.request)

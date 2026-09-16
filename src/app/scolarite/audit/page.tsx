@@ -6,22 +6,27 @@ import type { AuditEntry } from "@/lib/types";
 import { AuditTable } from "@/components/audit/AuditTable";
 import { BarreFiltres } from "@/components/filtres/BarreFiltres";
 import { apiFetch } from "@/lib/api";
-import { useFiltresUrl } from "@/lib/filtres";
+import { useFiltresManuel } from "@/lib/filtres";
 
 // [V3] FR-AUD-04 — filtrage du journal d'audit, CÔTÉ SERVEUR.
 //
 // Contrairement aux référentiels (groupes, salles, cours), le journal est
 // append-only par construction : INV-04 interdit d'en supprimer une ligne,
 // il ne fait donc que croître. Au bout d'un semestre, tout charger pour
-// filtrer dans le navigateur rendrait l'écran inutilisable — et c'est
-// exactement la situation que le porteur de projet décrivait en demandant
-// des filtres. Le serveur plafonne par ailleurs sa réponse (200 entrées),
-// ce qui rend les filtres non pas confortables mais nécessaires pour
-// atteindre une entrée ancienne.
+// filtrer dans le navigateur rendrait l'écran inutilisable. Le serveur
+// plafonne par ailleurs sa réponse (200 entrées), ce qui rend les filtres
+// non pas confortables mais nécessaires pour atteindre une entrée ancienne.
+//
+// [2026-09] Retour des gestionnaires : rien ne charge avant un clic
+// explicite sur "Actualiser" — remplace l'ancien anti-rebond automatique
+// sur la saisie, devenu inutile puisque la saisie ne déclenche plus rien
+// tant que le clic n'a pas eu lieu.
 export default function JournalAuditPage() {
   const [entries, setEntries] = useState<AuditEntry[] | null>(null);
-  const [chargement, setChargement] = useState(true);
-  const { valeur, definir, reinitialiser, actifs } = useFiltresUrl();
+  // Dérivé plutôt qu'un booléen posé dans l'effet : la requête en cours de
+  // chargement est celle dont la réponse n'est pas encore arrivée.
+  const [requeteChargee, setRequeteChargee] = useState<string | null>(null);
+  const { brouillon, definirBrouillon, valeur, actualiser, reinitialiser, actifs, aActualise } = useFiltresManuel();
 
   const recherche = valeur("q");
   const auteur = valeur("auteur");
@@ -39,28 +44,30 @@ export default function JournalAuditPage() {
   }, [recherche, auteur, depuis, jusqua]);
 
   useEffect(() => {
+    if (!aActualise) return;
     let annule = false;
-    // Anti-rebond : sans lui, chaque caractère tapé déclencherait une
-    // requête au serveur — coûteux sur les connexions visées par le cahier
-    // des charges (§1.4), et inutile puisque l'utilisateur tape encore.
-    const minuterie = setTimeout(() => {
-      apiFetch(requete)
-        .then((r) => r.json())
-        .then((data) => {
-          if (annule) return;
-          setEntries(data.entries);
-          setChargement(false);
-        })
-        .catch(() => {
-          if (!annule) setChargement(false);
-        });
-    }, 250);
+    apiFetch(requete)
+      .then((r) => r.json())
+      .then((data) => {
+        if (annule) return;
+        setEntries(data.entries);
+        setRequeteChargee(requete);
+      })
+      .catch(() => {
+        if (!annule) setRequeteChargee(requete);
+      });
 
     return () => {
       annule = true;
-      clearTimeout(minuterie);
     };
-  }, [requete]);
+  }, [requete, aActualise]);
+
+  const chargement = aActualise && requete !== requeteChargee;
+  // [2026-09] Retour des gestionnaires : Actualiser ne se débloque que si
+  // les 4 filtres (Recherche, Auteur, Du, Au) sont tous renseignés.
+  const peutActualiser = Boolean(
+    brouillon("q").trim() && brouillon("auteur").trim() && brouillon("depuis") && brouillon("jusqua")
+  );
 
   return (
     <div>
@@ -75,20 +82,23 @@ export default function JournalAuditPage() {
 
       <BarreFiltres
         placeholder="Rechercher dans les actions et les motifs..."
-        valeur={valeur}
-        definir={definir}
+        valeur={brouillon}
+        definir={definirBrouillon}
         reinitialiser={reinitialiser}
         actifs={actifs}
         resultats={entries?.length ?? 0}
         total={entries?.length ?? 0}
+        manuel
+        onActualiser={actualiser}
+        peutActualiser={peutActualiser}
         extra={
           <>
             <label className="flex flex-col gap-1">
               <span className="text-xs font-medium text-text-muted">Auteur</span>
               <input
                 type="text"
-                value={valeur("auteur")}
-                onChange={(e) => definir("auteur", e.target.value)}
+                value={brouillon("auteur")}
+                onChange={(e) => definirBrouillon("auteur", e.target.value)}
                 placeholder="Nom du gestionnaire"
                 className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text"
               />
@@ -97,8 +107,8 @@ export default function JournalAuditPage() {
               <span className="text-xs font-medium text-text-muted">Du</span>
               <input
                 type="date"
-                value={valeur("depuis")}
-                onChange={(e) => definir("depuis", e.target.value)}
+                value={brouillon("depuis")}
+                onChange={(e) => definirBrouillon("depuis", e.target.value)}
                 className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text"
               />
             </label>
@@ -106,8 +116,8 @@ export default function JournalAuditPage() {
               <span className="text-xs font-medium text-text-muted">Au</span>
               <input
                 type="date"
-                value={valeur("jusqua")}
-                onChange={(e) => definir("jusqua", e.target.value)}
+                value={brouillon("jusqua")}
+                onChange={(e) => definirBrouillon("jusqua", e.target.value)}
                 className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text"
               />
             </label>
@@ -115,17 +125,23 @@ export default function JournalAuditPage() {
         }
       />
 
-      <div className={`rounded-xl border border-border bg-surface ${chargement ? "opacity-60" : ""}`}>
-        {entries === null ? (
-          <p className="px-4 py-6 text-center text-sm text-text-muted">Chargement...</p>
-        ) : entries.length === 0 ? (
-          <p className="px-4 py-6 text-center text-sm text-text-muted">
-            {actifs > 0 ? "Aucune entrée ne correspond à ces filtres." : "Le journal est vide."}
-          </p>
-        ) : (
-          <AuditTable entries={entries} />
-        )}
-      </div>
+      {!aActualise ? (
+        <div className="rounded-xl border border-dashed border-border bg-surface p-8 text-center text-sm text-text-muted">
+          Renseignez Recherche, Auteur, Du et Au, puis cliquez sur Actualiser pour afficher le journal.
+        </div>
+      ) : (
+        <div className={`rounded-xl border border-border bg-surface ${chargement ? "opacity-60" : ""}`}>
+          {entries === null ? (
+            <p className="px-4 py-6 text-center text-sm text-text-muted">Chargement...</p>
+          ) : entries.length === 0 ? (
+            <p className="px-4 py-6 text-center text-sm text-text-muted">
+              {actifs > 0 ? "Aucune entrée ne correspond à ces filtres." : "Le journal est vide."}
+            </p>
+          ) : (
+            <AuditTable entries={entries} />
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -12,6 +12,7 @@ import {
   Landmark,
   LayoutDashboard,
   LogOut,
+  School,
   Users,
 } from "lucide-react";
 import type { Role } from "@/lib/types";
@@ -34,8 +35,9 @@ const NAV_ITEMS: Record<Role, NavItem[]> = {
     { href: "/scolarite", label: "Tableau de bord", icon: LayoutDashboard },
     { href: "/scolarite/planning", label: "Programmes", icon: Calendar },
     { href: "/scolarite/salles", label: "Salles", icon: Building2 },
-    { href: "/scolarite/groupes", label: "Groupes", icon: Users },
+    { href: "/scolarite/groupes", label: "Promotions", icon: Users },
     { href: "/scolarite/cours", label: "Cours", icon: BookOpen },
+    { href: "/scolarite/departements", label: "Départements", icon: School },
     { href: "/scolarite/audit", label: "Journal d'audit", icon: History },
   ],
   // FR-ADMIN-01/02/03 : l'Admin ne gère plus lui-même de référentiel/planning

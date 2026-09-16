@@ -100,18 +100,18 @@ export interface Enseignant {
   ufrs?: { ufrId: string }[];
 }
 
-// FR-REF-02/03 (V2) : "UFR" (ufrId renseigné) ou "DEP" — salle commune/louée
-// transversale, jamais rattachée à une UFR (cf. 01_PRD note 2026-08-27).
-export type StructureGestionnaire = "UFR" | "DEP";
-export type TypeUsageSalle = "propre" | "commune" | "louee" | "gratuite";
+// [2026-09] Usage pédagogique de la salle — retour des gestionnaires : les
+// anciennes valeurs (propre/commune/louee/gratuite) décrivaient en réalité
+// qui gère la salle — un concept retiré, cf. Salle plus bas.
+export type TypeUsageSalle = "cours" | "td" | "tp" | "laboratoire";
 
+// [2026-09] Plus de rattachement à une UFR (exception ciblée à INT-07,
+// cf. 03_Contrat_Invariants_Campus_Manager.md [V7]) : une salle est un
+// référentiel unique, partagé par toute l'université.
 export interface Salle {
   id: string;
   nom: string;
-  batiment: string;
   capacite: number;
-  structureGestionnaire: StructureGestionnaire;
-  ufrId: string | null; // null SSI structureGestionnaire === "DEP"
   typeUsage: TypeUsageSalle;
 }
 
@@ -119,9 +119,6 @@ export interface UniteEnseignement {
   id: string;
   code: string;
   intitule: string;
-  // FR-REF-13 : niveau visé par ce cours (L1...M2) — affiché en parenthèses
-  // à côté de l'intitulé.
-  niveau: string;
   ufrId: string;
   // [V3.3] Départements qui suivent ce cours. Plusieurs = cours mutualisé
   // (tronc commun, UE transversale) ; zéro = pas encore rattaché, ce que
@@ -187,9 +184,9 @@ export interface SeancePublique {
   jour: Creneau["jour"];
   heureDebut: string;
   heureFin: string;
-  ue: { code: string | null; intitule: string; niveau: string };
+  ue: { code: string | null; intitule: string };
   enseignant: string; // "Prénom Nom" — jamais un objet identifiable
-  salle: { nom: string; batiment: string };
+  salle: { nom: string };
   statut: StatutSeance;
   motif: string | null;
 }

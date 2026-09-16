@@ -6,14 +6,15 @@ import type { Salle, TypeUsageSalle } from "@/lib/types";
 import { apiFetch } from "@/lib/api";
 
 const TYPES: { value: TypeUsageSalle; label: string }[] = [
-  { value: "propre", label: "Propre à l'UFR" },
-  { value: "commune", label: "Commune (cours mutualisés)" },
-  { value: "louee", label: "Louée à un tiers" },
-  { value: "gratuite", label: "Attribution gratuite" },
+  { value: "cours", label: "Cours (CM)" },
+  { value: "td", label: "Travaux Dirigés (TD)" },
+  { value: "tp", label: "Travaux Pratiques (TP)" },
+  { value: "laboratoire", label: "Laboratoire" },
 ];
 
 // FR-REF-02 : capacité et type d'usage sont obligatoires — nécessaires au
-// moteur de conflits (FR-CONF-04) et au référentiel des salles (§4.1).
+// référentiel des salles (§4.1). Pas de champ "bâtiment" : retour des
+// gestionnaires, ce n'est pas une information nécessaire à la saisie.
 export function SalleFormModal({
   onClose,
   onSave,
@@ -22,9 +23,8 @@ export function SalleFormModal({
   onSave: (salle: Salle) => void;
 }) {
   const [nom, setNom] = useState("");
-  const [batiment, setBatiment] = useState("");
   const [capacite, setCapacite] = useState("");
-  const [typeUsage, setTypeUsage] = useState<TypeUsageSalle>("propre");
+  const [typeUsage, setTypeUsage] = useState<TypeUsageSalle>("cours");
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, setEnCours] = useState(false);
 
@@ -35,7 +35,7 @@ export function SalleFormModal({
     const reponse = await apiFetch("/salles", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nom, batiment, capacite, typeUsage }),
+      body: JSON.stringify({ nom, capacite, typeUsage }),
     });
     const data = await reponse.json();
     setEnCours(false);
@@ -48,7 +48,7 @@ export function SalleFormModal({
     onSave(data.salle);
   }
 
-  const peutEnregistrer = nom.trim() && batiment.trim() && Number(capacite) > 0 && !enCours;
+  const peutEnregistrer = nom.trim() && Number(capacite) > 0 && !enCours;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
@@ -68,17 +68,6 @@ export function SalleFormModal({
               value={nom}
               onChange={(e) => setNom(e.target.value)}
               placeholder="ex: Amphi B, Salle 205"
-              className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
-            />
-          </div>
-
-          <div>
-            <label className="text-sm font-medium text-text">Bâtiment</label>
-            <input
-              type="text"
-              value={batiment}
-              onChange={(e) => setBatiment(e.target.value)}
-              placeholder="ex: UFR/SEA, Amphis Centraux"
               className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
             />
           </div>

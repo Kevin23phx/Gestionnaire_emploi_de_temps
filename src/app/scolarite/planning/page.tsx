@@ -3,23 +3,36 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarDays, Plus } from "lucide-react";
-import type { Creneau, Groupe } from "@/lib/types";
+import type { Creneau, Departement, Groupe } from "@/lib/types";
 import { NouveauProgrammeModal } from "@/components/planning/NouveauProgrammeModal";
 import { BarreFiltres } from "@/components/filtres/BarreFiltres";
 import { apiFetch } from "@/lib/api";
-import { correspond, useFiltresUrl, valeursDistinctes } from "@/lib/filtres";
+import { correspond, useFiltresManuel, valeursDistinctes } from "@/lib/filtres";
+import { NIVEAUX, anneesAcademiques } from "@/lib/referentiel-options";
 
 // Liste des programmes — un par groupe (décision de cadrage 2026-08-17,
 // FR-EDT-01 : un créneau appartient toujours à un groupe précis, on ne
 // mélange jamais l'emploi du temps de deux groupes sur une même feuille).
+//
+// [2026-09] Retour des gestionnaires : cet écran charge en plus TOUS les
+// créneaux de toutes les promotions — le plus lourd du référentiel
+// gestionnaire. Rien ne charge avant un clic explicite sur "Actualiser".
 export default function ListeProgrammesPage() {
   const router = useRouter();
   const [groupes, setGroupes] = useState<Groupe[] | null>(null);
   const [creneaux, setCreneaux] = useState<Creneau[] | null>(null);
+  const [departementsRef, setDepartementsRef] = useState<Departement[] | null>(null);
   const [modalOuvert, setModalOuvert] = useState(false);
-  const { valeur, definir, reinitialiser, actifs } = useFiltresUrl();
+  const { brouillon, definirBrouillon, valeur, actualiser, reinitialiser, actifs, aActualise } = useFiltresManuel();
 
   useEffect(() => {
+    apiFetch("/departements")
+      .then((r) => r.json())
+      .then((data) => setDepartementsRef(data.departements));
+  }, []);
+
+  useEffect(() => {
+    if (!aActualise) return;
     apiFetch("/groupes")
       .then((r) => {
         if (r.status === 401) {
@@ -38,9 +51,9 @@ export default function ListeProgrammesPage() {
         return r.json();
       })
       .then((data) => data && setCreneaux(data.creneaux ?? []));
-  }, [router]);
+  }, [router, aActualise]);
 
-  const pretes = groupes !== null && creneaux !== null;
+  const pretes = aActualise && groupes !== null && creneaux !== null;
 
   const tous = useMemo(() => groupes ?? [], [groupes]);
   const filtres = useMemo(
@@ -50,15 +63,13 @@ export default function ListeProgrammesPage() {
           correspond(valeur("q"), g.nom, g.departement) &&
           (!valeur("departement") || g.departement === valeur("departement")) &&
           (!valeur("niveau") || g.niveau === valeur("niveau")) &&
-          (!valeur("annee") || g.anneeAcademique === valeur("annee")) &&
-          // Un programme encore vide est ce qu'un Gestionnaire cherche en
-          // priorité en début de semestre : « lesquels me reste-t-il à
-          // saisir ? ». Sans ce filtre, il faut ouvrir les cartes une à une.
-          (valeur("etat") !== "vide" || !(creneaux ?? []).some((c) => c.groupe.id === g.id)) &&
-          (valeur("etat") !== "rempli" || (creneaux ?? []).some((c) => c.groupe.id === g.id))
+          (!valeur("annee") || g.anneeAcademique === valeur("annee"))
       ),
-    [tous, creneaux, valeur]
+    [tous, valeur]
   );
+  // [2026-09] Retour des gestionnaires : Actualiser ne se débloque que si
+  // les 3 filtres (Département, Parcours, Année) sont tous renseignés.
+  const peutActualiser = Boolean(brouillon("departement") && brouillon("niveau") && brouillon("annee"));
 
   return (
     <div>
@@ -79,30 +90,39 @@ export default function ListeProgrammesPage() {
         </button>
       </div>
 
-      {pretes ? (
-        <BarreFiltres
-          placeholder="Rechercher un programme par groupe ou département..."
-          filtres={[
-            { cle: "departement", label: "Département", options: valeursDistinctes(tous, (g) => g.departement) },
-            { cle: "niveau", label: "Niveau", options: valeursDistinctes(tous, (g) => g.niveau) },
-            { cle: "annee", label: "Année", options: valeursDistinctes(tous, (g) => g.anneeAcademique) },
-            { cle: "etat", label: "État", options: ["rempli", "vide"] },
-          ]}
-          valeur={valeur}
-          definir={definir}
-          reinitialiser={reinitialiser}
-          actifs={actifs}
-          resultats={filtres.length}
-          total={tous.length}
-        />
-      ) : null}
+      <BarreFiltres
+        placeholder="Rechercher un programme par groupe ou département..."
+        filtres={[
+          {
+            cle: "departement",
+            label: "Département",
+            options: valeursDistinctes(departementsRef ?? [], (d) => d.libelle),
+          },
+          { cle: "niveau", label: "Parcours", options: [...NIVEAUX] },
+          { cle: "annee", label: "Année", options: anneesAcademiques() },
+        ]}
+        valeur={brouillon}
+        definir={definirBrouillon}
+        reinitialiser={reinitialiser}
+        actifs={actifs}
+        resultats={filtres.length}
+        total={tous.length}
+        manuel
+        onActualiser={actualiser}
+        peutActualiser={peutActualiser}
+      />
 
-      {!pretes ? (
+      {!aActualise ? (
+        <div className="rounded-xl border border-dashed border-border bg-surface p-8 text-center text-sm text-text-muted">
+          Choisissez un Département, un Parcours et une Année, puis cliquez sur Actualiser pour afficher les
+          programmes.
+        </div>
+      ) : !pretes ? (
         <p className="px-4 py-6 text-center text-sm text-text-muted">Chargement...</p>
       ) : filtres.length === 0 && tous.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border bg-surface p-8 text-center text-sm text-text-muted">
-          Aucun groupe dans le référentiel pour l&apos;instant — créez-en un depuis la
-          section Groupes avant d&apos;ouvrir un programme.
+          Aucune promotion dans le référentiel pour l&apos;instant — créez-en une depuis la
+          section Promotions avant d&apos;ouvrir un programme.
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

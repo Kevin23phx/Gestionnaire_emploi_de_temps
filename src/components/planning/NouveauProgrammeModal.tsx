@@ -40,15 +40,15 @@ export function NouveauProgrammeModal({
         {groupes.length === 0 ? (
           <div className="flex flex-col gap-3">
             <p className="text-sm text-text-muted">
-              Aucun groupe n&apos;est encore enregistré dans votre établissement. Créez-en un dans la section
-              Groupes avant d&apos;ouvrir un programme.
+              Aucune promotion n&apos;est encore enregistrée dans votre établissement. Créez-en une dans la
+              section Promotions avant d&apos;ouvrir un programme.
             </p>
             <Link
               href="/scolarite/groupes"
               onClick={onClose}
               className="rounded-lg bg-brand px-4 py-2 text-center text-sm font-medium text-white hover:bg-brand-hover"
             >
-              Aller à la section Groupes
+              Aller à la section Promotions
             </Link>
           </div>
         ) : (

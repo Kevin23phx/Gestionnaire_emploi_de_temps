@@ -6,13 +6,16 @@ import type { UniteEnseignement } from "@/lib/types";
 import { CoursFormModal } from "@/components/cours/CoursFormModal";
 import { BarreFiltres } from "@/components/filtres/BarreFiltres";
 import { apiFetch } from "@/lib/api";
-import { correspond, useFiltresUrl, valeursDistinctes } from "@/lib/filtres";
+import { correspond, useFiltresManuel } from "@/lib/filtres";
 
+// [2026-09] Retour des gestionnaires post-présentation : rien ne charge
+// avant un clic explicite sur "Actualiser" — comme le reste du référentiel
+// gestionnaire.
 export default function CoursPage() {
   const [cours, setCours] = useState<UniteEnseignement[] | null>(null);
   const [modalOuvert, setModalOuvert] = useState(false);
   const [enEdition, setEnEdition] = useState<UniteEnseignement | null>(null);
-  const { valeur, definir, reinitialiser, actifs } = useFiltresUrl();
+  const { brouillon, definirBrouillon, valeur, actualiser, reinitialiser, actifs, aActualise } = useFiltresManuel();
 
   // Même motivation que pour les salles : « être sûr que ce cours existe »
   // avant d'en créer un doublon (FR-FILT-04).
@@ -20,27 +23,22 @@ export default function CoursPage() {
   const filtres = useMemo(
     () =>
       tous.filter(
-        (ue) =>
-          // [V3.3] La recherche porte aussi sur les départements : chercher
-          // « Informatique » doit remonter les cours que ce département
-          // suit, y compris un tronc commun dont l'intitulé ne le mentionne
-          // pas.
-          correspond(valeur("q"), ue.intitule, ue.code, ...ue.departements.map((d) => d.libelle)) &&
-          (!valeur("niveau") || ue.niveau === valeur("niveau")) &&
-          (!valeur("departement") || ue.departements.some((d) => d.libelle === valeur("departement"))) &&
-          (valeur("partage") !== "mutualise" || ue.departements.length > 1) &&
-          (valeur("partage") !== "sans" || ue.departements.length === 0)
+        (ue) => correspond(valeur("q"), ue.intitule) && correspond(valeur("code"), ue.code)
       ),
     [tous, valeur]
   );
 
   const sansDepartement = tous.filter((ue) => ue.departements.length === 0).length;
+  // [2026-09] Retour des gestionnaires : Actualiser ne se débloque qu'une
+  // fois l'Intitulé renseigné — Code reste une précision optionnelle.
+  const peutActualiser = Boolean(brouillon("q").trim());
 
   useEffect(() => {
+    if (!aActualise) return;
     apiFetch("/cours")
       .then((r) => r.json())
       .then((data) => setCours(data.cours));
-  }, []);
+  }, [aActualise]);
 
   return (
     <div>
@@ -50,7 +48,7 @@ export default function CoursPage() {
           {/* FR-REF-01 : import Excel/CSV à brancher sur l'API une fois disponible */}
           <p className="text-sm text-text-muted">
             Référentiel des unités d&apos;enseignement de votre établissement
-            {cours ? ` — ${cours.length} cours.` : "..."}
+            {aActualise && cours ? ` — ${cours.length} cours.` : ""}
           </p>
         </div>
         <button
@@ -63,26 +61,36 @@ export default function CoursPage() {
       </div>
 
       <BarreFiltres
-        placeholder="Rechercher un cours par intitulé, code ou département..."
-        filtres={[
-          { cle: "niveau", label: "Niveau", options: valeursDistinctes(tous, (ue) => ue.niveau) },
-          {
-            cle: "departement",
-            label: "Département",
-            options: [...new Set(tous.flatMap((ue) => ue.departements.map((d) => d.libelle)))].sort((a, b) =>
-              a.localeCompare(b, "fr")
-            ),
-          },
-          { cle: "partage", label: "Partage", options: ["mutualise", "sans"] },
-        ]}
-        valeur={valeur}
-        definir={definir}
+        placeholder="Intitulé du cours..."
+        valeur={brouillon}
+        definir={definirBrouillon}
         reinitialiser={reinitialiser}
         actifs={actifs}
         resultats={filtres.length}
         total={tous.length}
+        manuel
+        onActualiser={actualiser}
+        peutActualiser={peutActualiser}
+        extra={
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-text-muted">Code</span>
+            <input
+              type="text"
+              value={brouillon("code")}
+              onChange={(e) => definirBrouillon("code", e.target.value)}
+              placeholder="ex : INFO301"
+              className="w-32 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text"
+            />
+          </label>
+        }
       />
 
+      {!aActualise ? (
+        <div className="rounded-xl border border-dashed border-border bg-surface p-8 text-center text-sm text-text-muted">
+          Renseignez au moins l&apos;intitulé puis cliquez sur Actualiser pour afficher les cours.
+        </div>
+      ) : (
+        <>
       {/* Même logique que l'effectif à zéro sur les groupes : un cours sans
           département n'est pas une erreur, mais il est introuvable par
           département — le dire une fois, en tête. */}
@@ -110,9 +118,7 @@ export default function CoursPage() {
             {filtres.map((ue) => (
               <tr key={ue.id} className="border-t border-border align-top">
                 <td className="px-4 py-2 font-medium text-text">{ue.code}</td>
-                <td className="px-4 py-2 text-text-muted">
-                  {ue.intitule} <span className="text-text-subtle">({ue.niveau})</span>
-                </td>
+                <td className="px-4 py-2 text-text-muted">{ue.intitule}</td>
                 <td className="px-4 py-2">
                   {ue.departements.length === 0 ? (
                     <span className="inline-flex items-center gap-1 text-xs text-status-warning">
@@ -162,6 +168,8 @@ export default function CoursPage() {
           </p>
         ) : null}
       </div>
+        </>
+      )}
 
       {modalOuvert || enEdition ? (
         <CoursFormModal

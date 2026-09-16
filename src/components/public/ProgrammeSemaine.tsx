@@ -39,9 +39,7 @@ function Seance({ seance }: { seance: SeancePublique }) {
       <p className={`text-sm font-semibold leading-tight text-text ${barre ? "line-through opacity-70" : ""}`}>
         {seance.ue.intitule}
       </p>
-      <p className="text-xs text-text-muted">
-        {seance.salle.nom} · {seance.salle.batiment}
-      </p>
+      <p className="text-xs text-text-muted">{seance.salle.nom}</p>
       <p className="text-xs text-text-muted">{seance.enseignant}</p>
       {seance.motif ? <p className="text-xs italic text-text-subtle">Motif : {seance.motif}</p> : null}
     </div>
