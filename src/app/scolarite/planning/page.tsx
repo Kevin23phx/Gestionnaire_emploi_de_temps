@@ -84,22 +84,25 @@ export default function ListeProgrammesPage() {
     return params.toString();
   }, [valeur]);
 
-  function ouvrirProgramme(groupeId: string, nouveauCreneau = false) {
-    const params = new URLSearchParams(filtresQuery);
-    if (nouveauCreneau) params.set("nouveau", "1");
-    router.push(`/scolarite/planning/${groupeId}?${params.toString()}`);
+  function ouvrirProgramme(groupeId: string) {
+    router.push(`/scolarite/planning/${groupeId}?${filtresQuery}`);
   }
 
   // [2026-09] Retour des gestionnaires : une fois le filtre appliqué, le
   // groupe est DÉJÀ désigné — le redemander dans une fenêtre ferait refaire
-  // à la main le travail que le filtre vient de faire. On saute donc
-  // directement à la saisie du créneau. La fenêtre de choix ne subsiste que
-  // pour le cas où le filtre laisse encore plusieurs groupes (un parcours
-  // dédoublé en Groupe A / Groupe B) : là, il reste une vraie question à
-  // poser, et elle ne porte que sur les groupes retenus par le filtre.
+  // à la main le travail que le filtre vient de faire. La fenêtre de choix
+  // ne subsiste que pour le cas où le filtre laisse encore plusieurs groupes
+  // (un parcours dédoublé en Groupe A / Groupe B) : là, il reste une vraie
+  // question à poser, et elle ne porte que sur les groupes retenus.
+  //
+  // Les deux chemins arrivent au MÊME écran, la feuille du groupe, d'où l'on
+  // clique sur « Nouveau créneau ». Une version intermédiaire ouvrait le
+  // formulaire de créneau d'emblée par ce bouton-ci : selon l'endroit cliqué,
+  // le même geste donnait deux écrans différents, et on n'avait jamais vu
+  // l'emploi du temps auquel on s'apprêtait à ajouter une séance.
   function nouveauProgramme() {
     if (filtres.length === 1) {
-      ouvrirProgramme(filtres[0].id, true);
+      ouvrirProgramme(filtres[0].id);
       return;
     }
     setModalOuvert(true);
@@ -198,7 +201,7 @@ export default function ListeProgrammesPage() {
         <NouveauProgrammeModal
           groupes={filtres}
           onClose={() => setModalOuvert(false)}
-          onChoisi={(groupeId) => ouvrirProgramme(groupeId, true)}
+          onChoisi={(groupeId) => ouvrirProgramme(groupeId)}
         />
       ) : null}
     </div>
