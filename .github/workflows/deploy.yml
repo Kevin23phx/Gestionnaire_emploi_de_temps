@@ -1,0 +1,45 @@
+name: Déployer sur Cloudflare Workers
+
+# Un push sur main construit puis déploie automatiquement — plus besoin de
+# le faire à la main à chaque commit. `workflow_dispatch` permet aussi de
+# relancer un déploiement manuellement depuis l'onglet "Actions" de GitHub,
+# sans nouveau commit (utile après un changement de configuration Cloudflare
+# qui ne touche aucun fichier du dépôt, ex. le secret lui-même).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+# Un déploiement qui écraserait un déploiement plus récent en cours créerait
+# une confusion sur "quelle version est réellement en ligne" ; un seul à la
+# fois, dans l'ordre des commits.
+concurrency:
+  group: deploy-cloudflare
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # @opennextjs/cloudflare et wrangler exigent Node >= 22 (miniflare
+      # notamment) — une version antérieure fait échouer wrangler avant même
+      # la première commande.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm ci
+
+      # NEXT_PUBLIC_API_URL et API_INTERNAL_URL viennent de .env.production
+      # (commité, non sensible — ce sont des URL, pas des secrets) : Next.js
+      # les charge tout seul au build, rien à passer ici.
+      - run: npx opennextjs-cloudflare build
+
+      - run: npx wrangler deploy
+        env:
+          # Seul secret nécessaire — à créer manuellement dans les paramètres
+          # du dépôt GitHub (Settings → Secrets and variables → Actions),
+          # jamais commité. Voir CLOUDFLARE_DEPLOY.md pour la marche à suivre.
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
