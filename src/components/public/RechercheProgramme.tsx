@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, RefreshCw, Search } from "lucide-react";
+import { CalendarClock, Loader2, RefreshCw, Search } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import type { GroupePublic, Ufr } from "@/lib/types";
 
@@ -15,11 +15,17 @@ import type { GroupePublic, Ufr } from "@/lib/types";
 // complètes ET qu'on n'a pas cliqué sur "Actualiser" — pas de chargement
 // intermédiaire, pas de résultat partiel.
 //
-// FR-PUB-02 reste respectée malgré la mise à plat : chaque liste déroulante
-// ne propose que des valeurs qui mènent réellement quelque part compte tenu
-// des étages précédents (elle est désactivée et vide tant que son
-// prérequis n'est pas choisi) — un visiteur ne peut toujours pas construire
-// une combinaison vide.
+// [2026-09] Retour du porteur de projet : les listes ne se limitent plus à
+// ce qui mène à un programme DÉJÀ publié. Un étudiant de L2 ne voyait pas
+// « L2 » tant que sa scolarité n'avait rien saisi : impossible pour lui de
+// distinguer « ce parcours n'existe pas » de « ce parcours n'est pas encore
+// publié », et la liste paraissait trouée. Chaque étage propose donc le
+// référentiel (établissements, départements officiels, niveaux du LMD,
+// années courantes — cf. public/services.py), et c'est la zone d'affichage
+// qui dit en toutes lettres qu'une combinaison n'a pas encore de programme.
+//
+// Ce qui subsiste de la cascade, c'est l'ordre de saisie : un département
+// appartient à un établissement, on ne peut donc le proposer avant lui.
 
 export function RechercheProgramme() {
   const router = useRouter();
@@ -39,6 +45,9 @@ export function RechercheProgramme() {
   const [erreur, setErreur] = useState<string | null>(null);
 
   const toutSelectionne = Boolean(annee && ufrId && departement && niveau);
+  // Le sigle plutôt que l'identifiant dans le message « pas encore publié » :
+  // c'est sous ce nom que le visiteur connaît son établissement.
+  const sigleEtablissement = (ufrs ?? []).find((u) => u.id === ufrId)?.sigleAffiche ?? "votre établissement";
 
   useEffect(() => {
     apiFetch("/public/annees")
@@ -47,41 +56,41 @@ export function RechercheProgramme() {
       .catch(() => setErreur("Impossible de charger les années académiques. Vérifiez votre connexion."));
   }, []);
 
+  // Les établissements ne dépendent plus de l'année choisie : une UFR ne
+  // cesse pas d'exister l'année où sa scolarité n'a rien saisi. La liste est
+  // donc chargée une fois, dès l'ouverture.
   useEffect(() => {
-    if (!annee) return;
-    apiFetch(`/public/ufrs?anneeAcademique=${encodeURIComponent(annee)}`)
+    apiFetch("/public/ufrs")
       .then((r) => r.json())
       .then((d) => setUfrs(d.ufrs));
-  }, [annee]);
+  }, []);
 
+  // Le département dépend de l'établissement (il lui appartient), plus de
+  // l'année : le référentiel des départements ne change pas d'une année sur
+  // l'autre parce qu'un programme a été saisi ou non.
   useEffect(() => {
-    if (!annee || !ufrId) return;
-    const params = new URLSearchParams({ ufrId, anneeAcademique: annee });
-    apiFetch(`/public/departements?${params.toString()}`)
+    if (!ufrId) return;
+    apiFetch(`/public/departements?ufrId=${encodeURIComponent(ufrId)}`)
       .then((r) => r.json())
       .then((d) => setDepartements(d.departements));
-  }, [annee, ufrId]);
+  }, [ufrId]);
 
   useEffect(() => {
-    if (!annee || !ufrId || !departement) return;
-    const params = new URLSearchParams({ ufrId, departement, anneeAcademique: annee });
+    if (!ufrId || !departement) return;
+    const params = new URLSearchParams({ ufrId, departement });
     apiFetch(`/public/niveaux?${params.toString()}`)
       .then((r) => r.json())
       .then((d) => setNiveaux(d.niveaux));
-  }, [annee, ufrId, departement]);
+  }, [ufrId, departement]);
 
   // Les réinitialisations des étages avals se font ici, dans le geste qui
   // les invalide (le clic), jamais dans le corps d'un effet : sans ça,
-  // choisir une nouvelle Année afficherait un instant les Établissements de
-  // la précédente, le temps que le nouvel appel réseau revienne.
+  // choisir un nouvel Établissement afficherait un instant les Départements
+  // du précédent, le temps que le nouvel appel réseau revienne.
   function changerAnnee(valeur: string) {
     setAnnee(valeur);
-    setUfrs(null);
-    setUfrId("");
-    setDepartements(null);
-    setDepartement("");
-    setNiveaux(null);
-    setNiveau("");
+    // Les étages avals ne sont pas vidés : ils ne dépendent plus de l'année.
+    // Seul le RÉSULTAT, lui, redevient à demander.
     setResultatsPrets(false);
     setGroupes(null);
   }
@@ -163,7 +172,7 @@ export function RechercheProgramme() {
           <select
             value={ufrId}
             onChange={(e) => changerUfr(e.target.value)}
-            disabled={!annee || ufrs === null}
+            disabled={ufrs === null}
             className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text disabled:opacity-60"
           >
             <option value="">Choisir...</option>
@@ -230,9 +239,18 @@ export function RechercheProgramme() {
           Chargement...
         </div>
       ) : groupes && groupes.length === 0 ? (
+        // ERR-07 étendue : dire que le programme demandé n'est pas encore
+        // publié, en le nommant. « Aucun résultat » laisserait le visiteur
+        // penser qu'il s'est trompé de sélection.
         <div className="rounded-xl border border-dashed border-border bg-surface p-6 text-center text-sm text-text-muted">
-          <Search className="mx-auto mb-2 h-5 w-5 text-text-subtle" aria-hidden="true" />
-          Aucun groupe ne correspond à cette combinaison.
+          <CalendarClock className="mx-auto mb-2 h-5 w-5 text-text-subtle" aria-hidden="true" />
+          <p className="font-medium text-text">
+            Le programme de {niveau} — {departement} n&apos;est pas encore disponible pour {annee}.
+          </p>
+          <p className="mt-1">
+            Il apparaîtra ici dès que la scolarité de {sigleEtablissement} l&apos;aura publié. Vous pouvez
+            revenir plus tard ou choisir une autre sélection.
+          </p>
         </div>
       ) : groupes ? (
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { ArrowLeft, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { detecterConflits } from "@/lib/conflict-detection";
 import type { Creneau, Enseignant, Groupe, Salle, UniteEnseignement } from "@/lib/types";
@@ -22,6 +22,22 @@ type EtatModal = { mode: "creation" } | { mode: "edition"; creneau: Creneau } | 
 // reste un vrai conflit, même si on ne le voit pas sur cette feuille-ci.
 export default function ProgrammeGroupePage() {
   const { groupeId } = useParams<{ groupeId: string }>();
+  const searchParams = useSearchParams();
+
+  // [2026-09] Retour des gestionnaires : la flèche « Retour aux programmes »
+  // doit rendre l'écran qu'on a quitté, filtres appliqués — pas la page nue
+  // d'entrée qu'il faudrait refiltrer à la main. Les filtres de la liste
+  // voyagent donc dans l'URL de cette page (cf. planning/page.tsx) et
+  // repartent avec le lien de retour. `nouveau` est le seul paramètre à ne
+  // pas faire le voyage inverse : il déclenche une ouverture de fenêtre, il
+  // n'a rien à dire à la liste.
+  const retourQuery = useMemo(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("nouveau");
+    const requete = params.toString();
+    return requete ? `?${requete}` : "";
+  }, [searchParams]);
+  const lienRetour = `/scolarite/planning${retourQuery}`;
 
   const [creneaux, setCreneaux] = useState<Creneau[] | null>(null);
   const [enseignants, setEnseignants] = useState<Enseignant[] | null>(null);
@@ -29,7 +45,12 @@ export default function ProgrammeGroupePage() {
   const [groupes, setGroupes] = useState<Groupe[] | null>(null);
   const [unitesEnseignement, setUnitesEnseignement] = useState<UniteEnseignement[] | null>(null);
   const [auteur, setAuteur] = useState("Scolarité");
-  const [modal, setModal] = useState<EtatModal>(null);
+  // Arrivée depuis « Nouveau programme » sur une liste déjà filtrée : le
+  // groupe est désigné, la saisie du créneau s'ouvre directement (le modal
+  // n'apparaît qu'une fois les données prêtes, cf. rendu plus bas).
+  const [modal, setModal] = useState<EtatModal>(
+    searchParams.get("nouveau") === "1" ? { mode: "creation" } : null
+  );
   const [confirmation, setConfirmation] = useState<string | null>(null);
   const [erreurEcriture, setErreurEcriture] = useState<string | null>(null);
   // [V3] FR-EDT-09 : la feuille est rattachée à une semaine calendaire —
@@ -231,7 +252,7 @@ export default function ProgrammeGroupePage() {
   if (donneesPretes && !groupeActuel) {
     return (
       <div>
-        <Link href="/scolarite/planning" className="mb-4 inline-flex items-center gap-1.5 text-sm text-brand hover:underline">
+        <Link href={lienRetour} className="mb-4 inline-flex items-center gap-1.5 text-sm text-brand hover:underline">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           Retour aux programmes
         </Link>
@@ -242,7 +263,7 @@ export default function ProgrammeGroupePage() {
 
   return (
     <div>
-      <Link href="/scolarite/planning" className="mb-4 inline-flex items-center gap-1.5 text-sm text-brand hover:underline">
+      <Link href={lienRetour} className="mb-4 inline-flex items-center gap-1.5 text-sm text-brand hover:underline">
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />
         Retour aux programmes
       </Link>

@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus } from "lucide-react";
 import type { Departement } from "@/lib/types";
 import { BarreFiltres } from "@/components/filtres/BarreFiltres";
 import { apiFetch } from "@/lib/api";
-import { correspond, useFiltresManuel } from "@/lib/filtres";
+import { useFiltresManuel } from "@/lib/filtres";
 
 // [2026-09] Retour des gestionnaires : les départements évoluent (un
 // nouveau département peut apparaître en cours d'année) — cet écran liste
@@ -14,24 +14,53 @@ import { correspond, useFiltresManuel } from "@/lib/filtres";
 // rien ne charge avant un clic explicite sur "Actualiser".
 export default function DepartementsPage() {
   const [departements, setDepartements] = useState<Departement[] | null>(null);
+  // Même procédé que le journal d'audit : la requête en cours de chargement
+  // est celle dont la réponse n'est pas encore arrivée. Sans ce repère,
+  // l'écran afficherait le résultat de la recherche PRÉCÉDENTE pendant que
+  // la nouvelle voyage — exactement le clignotement qu'on corrige ici.
+  const [requeteChargee, setRequeteChargee] = useState<string | null>(null);
   const [nouveau, setNouveau] = useState("");
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, setEnCours] = useState(false);
   const { brouillon, definirBrouillon, valeur, actualiser, reinitialiser, actifs, aActualise } = useFiltresManuel();
 
-  function charger() {
-    apiFetch("/departements")
+  // [2026-09] La recherche part AU SERVEUR (`?recherche=`) au lieu d'être
+  // appliquée dans le navigateur sur la liste complète. Deux défauts
+  // corrigés d'un coup : la requête ne ramène plus tout le référentiel pour
+  // n'en afficher qu'une ligne, et l'écran ne peut plus afficher un instant
+  // des départements que le filtre écarte — il n'a jamais reçu les autres.
+  const recherche = valeur("q").trim();
+  const requete = useMemo(
+    () => (recherche ? `/departements?recherche=${encodeURIComponent(recherche)}` : "/departements"),
+    [recherche]
+  );
+
+  const charger = useCallback(() => {
+    apiFetch(requete)
       .then((r) => r.json())
       .then((data) => setDepartements(data.departements));
-  }
+  }, [requete]);
 
+  // Dépend de `requete` et pas seulement de `aActualise` : sans ça, changer
+  // le terme puis recliquer sur Actualiser ne relançait aucune requête et
+  // l'écran gardait le résultat de la recherche précédente.
   useEffect(() => {
     if (!aActualise) return;
-    charger();
-  }, [aActualise]);
+    let annule = false;
+    apiFetch(requete)
+      .then((r) => r.json())
+      .then((data) => {
+        if (annule) return;
+        setDepartements(data.departements);
+        setRequeteChargee(requete);
+      });
+    return () => {
+      annule = true;
+    };
+  }, [aActualise, requete]);
 
-  const tous = useMemo(() => departements ?? [], [departements]);
-  const filtres = useMemo(() => tous.filter((d) => correspond(valeur("q"), d.libelle)), [tous, valeur]);
+  const filtres = useMemo(() => departements ?? [], [departements]);
+  const chargement = aActualise && requete !== requeteChargee;
   // [2026-09] Retour des gestionnaires : Actualiser ne se débloque qu'une
   // fois la recherche renseignée.
   const peutActualiser = Boolean(brouillon("q").trim());
@@ -62,7 +91,9 @@ export default function DepartementsPage() {
           <h1 className="text-xl font-bold text-text">Départements</h1>
           <p className="text-sm text-text-muted">
             Référentiel des départements de votre établissement
-            {aActualise && departements ? ` — ${departements.length} départements.` : ""}
+            {aActualise && departements && !chargement
+              ? ` — ${departements.length} résultat${departements.length > 1 ? "s" : ""}.`
+              : ""}
           </p>
         </div>
       </div>
@@ -98,7 +129,7 @@ export default function DepartementsPage() {
         reinitialiser={reinitialiser}
         actifs={actifs}
         resultats={filtres.length}
-        total={tous.length}
+        total={filtres.length}
         manuel
         onActualiser={actualiser}
         peutActualiser={peutActualiser}
@@ -109,7 +140,7 @@ export default function DepartementsPage() {
           Renseignez une recherche puis cliquez sur Actualiser pour afficher les départements.
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-border bg-surface">
+        <div className={`overflow-x-auto rounded-xl border border-border bg-surface ${chargement ? "opacity-60" : ""}`}>
           <table className="w-full min-w-[320px] text-left text-sm">
             <thead>
               <tr className="text-xs uppercase tracking-wide text-text-subtle">
@@ -124,11 +155,11 @@ export default function DepartementsPage() {
               ))}
             </tbody>
           </table>
-          {departements === null ? (
+          {departements === null || chargement ? (
             <p className="px-4 py-6 text-center text-sm text-text-muted">Chargement...</p>
           ) : filtres.length === 0 ? (
             <p className="px-4 py-6 text-center text-sm text-text-muted">
-              {tous.length === 0 ? "Aucun département dans le référentiel." : "Aucun département ne correspond à ces filtres."}
+              Aucun département ne correspond à « {recherche} ».
             </p>
           ) : null}
         </div>

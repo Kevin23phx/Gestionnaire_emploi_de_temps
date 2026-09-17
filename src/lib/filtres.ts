@@ -18,6 +18,7 @@ import { normaliser } from "./recherche";
  */
 export function useFiltresUrl(): {
   valeur: (cle: string) => string;
+  toutes: () => Record<string, string>;
   definir: (cle: string, valeur: string) => void;
   definirPlusieurs: (entrees: [string, string][]) => void;
   reinitialiser: () => void;
@@ -28,6 +29,8 @@ export function useFiltresUrl(): {
   const searchParams = useSearchParams();
 
   const valeur = useCallback((cle: string) => searchParams.get(cle) ?? "", [searchParams]);
+
+  const toutes = useCallback(() => Object.fromEntries(searchParams.entries()), [searchParams]);
 
   // Applique plusieurs changements en une seule navigation. Indispensable
   // pour un commit à plusieurs clés à la fois (cf. useFiltresManuel) :
@@ -55,7 +58,7 @@ export function useFiltresUrl(): {
 
   const actifs = useMemo(() => [...searchParams.keys()].length, [searchParams]);
 
-  return { valeur, definir, definirPlusieurs, reinitialiser, actifs };
+  return { valeur, toutes, definir, definirPlusieurs, reinitialiser, actifs };
 }
 
 /**
@@ -81,9 +84,29 @@ export function useFiltresManuel(): {
   actifs: number;
   aActualise: boolean;
 } {
-  const { valeur, definirPlusieurs, reinitialiser: reinitialiserUrl, actifs } = useFiltresUrl();
+  const { valeur: valeurUrl, toutes, definirPlusieurs, reinitialiser: reinitialiserUrl, actifs } = useFiltresUrl();
   const [brouillonState, setBrouillonState] = useState<Record<string, string>>({});
+  // [2026-09] Les filtres committés, tenus EN LOCAL dès le clic.
+  //
+  // Cause du défaut corrigé ici : `router.replace` est une transition
+  // asynchrone, alors que `aActualise` bascule, lui, dans le même rendu que
+  // le clic. L'écran partait donc chercher ses données et les affichait
+  // pendant que `searchParams` renvoyait encore l'URL d'avant — c'est-à-dire
+  // en filtrant sur une valeur vide. Résultat visible à l'œil nu : tout le
+  // référentiel s'affichait une fraction de seconde, puis se réduisait au
+  // filtre demandé une fois la navigation arrivée.
+  //
+  // `null` tant qu'on n'a rien committé sur cet écran : l'URL reste alors la
+  // source (lien partagé, retour depuis une fiche). Après le premier clic,
+  // c'est cette table qui fait foi et l'URL n'en est plus que le miroir —
+  // écrit pour rester partageable, jamais relu.
+  const [committe, setCommitte] = useState<Record<string, string> | null>(null);
   const [aActualise, setAActualise] = useState(() => actifs > 0);
+
+  const valeur = useCallback(
+    (cle: string) => (committe ? (committe[cle] ?? "") : valeurUrl(cle)),
+    [committe, valeurUrl]
+  );
 
   const brouillon = useCallback(
     (cle: string) => (cle in brouillonState ? brouillonState[cle] : valeur(cle)),
@@ -95,16 +118,22 @@ export function useFiltresManuel(): {
   }, []);
 
   const actualiser = useCallback(() => {
+    // Committé localement AVANT la navigation : c'est ce qui garantit que la
+    // requête déclenchée juste après part déjà avec le bon filtre. Au premier
+    // clic, les filtres déjà portés par l'URL servent de base — sinon ouvrir
+    // un lien filtré puis n'ajuster qu'un seul menu effacerait les autres.
+    setCommitte((prev) => ({ ...(prev ?? toutes()), ...brouillonState }));
     // Une seule navigation pour tous les changements en attente : les
     // appliquer un par un partirait chaque fois du même instantané de l'URL
     // et s'écraserait mutuellement (cf. définirPlusieurs).
     definirPlusieurs(Object.entries(brouillonState));
     setBrouillonState({});
     setAActualise(true);
-  }, [brouillonState, definirPlusieurs]);
+  }, [brouillonState, definirPlusieurs, toutes]);
 
   const reinitialiser = useCallback(() => {
     setBrouillonState({});
+    setCommitte(null);
     setAActualise(false);
     reinitialiserUrl();
   }, [reinitialiserUrl]);

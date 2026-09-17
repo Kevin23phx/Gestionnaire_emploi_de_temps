@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Pencil, Plus } from "lucide-react";
+import { Pencil, Plus } from "lucide-react";
 import type { UniteEnseignement } from "@/lib/types";
 import { CoursFormModal } from "@/components/cours/CoursFormModal";
 import { BarreFiltres } from "@/components/filtres/BarreFiltres";
@@ -11,6 +11,12 @@ import { correspond, useFiltresManuel } from "@/lib/filtres";
 // [2026-09] Retour des gestionnaires post-présentation : rien ne charge
 // avant un clic explicite sur "Actualiser" — comme le reste du référentiel
 // gestionnaire.
+//
+// [2026-09] Retour du porteur de projet : un cours n'est plus rattaché à un
+// département. Le tableau n'a donc plus de colonne « Départements », ni le
+// bandeau qui comptait les cours non rattachés — il alertait sur un manque
+// qui n'en est plus un. Le rattachement disparaît aussi du formulaire
+// (cf. CoursFormModal).
 export default function CoursPage() {
   const [cours, setCours] = useState<UniteEnseignement[] | null>(null);
   const [modalOuvert, setModalOuvert] = useState(false);
@@ -28,7 +34,6 @@ export default function CoursPage() {
     [tous, valeur]
   );
 
-  const sansDepartement = tous.filter((ue) => ue.departements.length === 0).length;
   // [2026-09] Retour des gestionnaires : Actualiser ne se débloque qu'une
   // fois l'Intitulé renseigné — Code reste une précision optionnelle.
   const peutActualiser = Boolean(brouillon("q").trim());
@@ -91,26 +96,12 @@ export default function CoursPage() {
         </div>
       ) : (
         <>
-      {/* Même logique que l'effectif à zéro sur les groupes : un cours sans
-          département n'est pas une erreur, mais il est introuvable par
-          département — le dire une fois, en tête. */}
-      {cours !== null && sansDepartement > 0 ? (
-        <p className="mb-3 flex items-start gap-2 rounded-lg bg-status-warning-bg px-3 py-2 text-sm text-text">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-status-warning" aria-hidden="true" />
-          <span>
-            {sansDepartement} cours sans département. Rattachez-les pour qu&apos;ils apparaissent dans les
-            recherches par département.
-          </span>
-        </p>
-      ) : null}
-
       <div className="overflow-x-auto rounded-xl border border-border bg-surface">
-        <table className="w-full min-w-[420px] text-left text-sm">
+        <table className="w-full min-w-[360px] text-left text-sm">
           <thead>
             <tr className="text-xs uppercase tracking-wide text-text-subtle">
               <th className="px-4 py-2 font-medium">Code</th>
               <th className="px-4 py-2 font-medium">Intitulé</th>
-              <th className="px-4 py-2 font-medium">Départements</th>
               <th className="px-4 py-2 font-medium"></th>
             </tr>
           </thead>
@@ -119,34 +110,6 @@ export default function CoursPage() {
               <tr key={ue.id} className="border-t border-border align-top">
                 <td className="px-4 py-2 font-medium text-text">{ue.code}</td>
                 <td className="px-4 py-2 text-text-muted">{ue.intitule}</td>
-                <td className="px-4 py-2">
-                  {ue.departements.length === 0 ? (
-                    <span className="inline-flex items-center gap-1 text-xs text-status-warning">
-                      <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
-                      Non rattaché
-                    </span>
-                  ) : (
-                    <div className="flex flex-wrap items-center gap-1">
-                      {ue.departements.map((d) => (
-                        <span
-                          key={d.id}
-                          className="rounded-full bg-surface-muted px-2 py-0.5 text-xs text-text-muted"
-                        >
-                          {d.libelle}
-                        </span>
-                      ))}
-                      {/* Rendre le cas « mutualisé » lisible d'un coup d'œil :
-                          c'est l'information que le porteur de projet
-                          cherchait en demandant à voir tous les départements
-                          qui reçoivent un cours. */}
-                      {ue.departements.length > 1 ? (
-                        <span className="rounded-full bg-brand-light px-2 py-0.5 text-xs font-medium text-brand">
-                          mutualisé
-                        </span>
-                      ) : null}
-                    </div>
-                  )}
-                </td>
                 <td className="px-4 py-2 text-right">
                   <button
                     onClick={() => setEnEdition(ue)}

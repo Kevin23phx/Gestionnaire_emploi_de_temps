@@ -71,6 +71,40 @@ export default function ListeProgrammesPage() {
   // les 3 filtres (Département, Parcours, Année) sont tous renseignés.
   const peutActualiser = Boolean(brouillon("departement") && brouillon("niveau") && brouillon("annee"));
 
+  // [2026-09] Les filtres committés voyagent avec la navigation vers un
+  // programme : c'est ce qui permet au lien « Retour aux programmes » de
+  // l'écran suivant de ramener ICI, filtres compris, au lieu de renvoyer
+  // vers la page nue qu'il faudrait refiltrer entièrement.
+  const filtresQuery = useMemo(() => {
+    const params = new URLSearchParams();
+    for (const cle of ["q", "departement", "niveau", "annee"]) {
+      const v = valeur(cle);
+      if (v) params.set(cle, v);
+    }
+    return params.toString();
+  }, [valeur]);
+
+  function ouvrirProgramme(groupeId: string, nouveauCreneau = false) {
+    const params = new URLSearchParams(filtresQuery);
+    if (nouveauCreneau) params.set("nouveau", "1");
+    router.push(`/scolarite/planning/${groupeId}?${params.toString()}`);
+  }
+
+  // [2026-09] Retour des gestionnaires : une fois le filtre appliqué, le
+  // groupe est DÉJÀ désigné — le redemander dans une fenêtre ferait refaire
+  // à la main le travail que le filtre vient de faire. On saute donc
+  // directement à la saisie du créneau. La fenêtre de choix ne subsiste que
+  // pour le cas où le filtre laisse encore plusieurs groupes (un parcours
+  // dédoublé en Groupe A / Groupe B) : là, il reste une vraie question à
+  // poser, et elle ne porte que sur les groupes retenus par le filtre.
+  function nouveauProgramme() {
+    if (filtres.length === 1) {
+      ouvrirProgramme(filtres[0].id, true);
+      return;
+    }
+    setModalOuvert(true);
+  }
+
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
@@ -81,8 +115,8 @@ export default function ListeProgrammesPage() {
           </p>
         </div>
         <button
-          onClick={() => setModalOuvert(true)}
-          disabled={!pretes}
+          onClick={nouveauProgramme}
+          disabled={!pretes || filtres.length === 0}
           className="flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
         >
           <Plus className="h-4 w-4" aria-hidden="true" />
@@ -131,7 +165,7 @@ export default function ListeProgrammesPage() {
             return (
               <button
                 key={groupe.id}
-                onClick={() => router.push(`/scolarite/planning/${groupe.id}`)}
+                onClick={() => ouvrirProgramme(groupe.id)}
                 className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-4 text-left transition-colors hover:border-brand hover:bg-brand-light"
               >
                 <div className="flex items-center gap-2">
@@ -162,9 +196,9 @@ export default function ListeProgrammesPage() {
 
       {modalOuvert ? (
         <NouveauProgrammeModal
-          groupes={groupes ?? []}
+          groupes={filtres}
           onClose={() => setModalOuvert(false)}
-          onChoisi={(groupeId) => router.push(`/scolarite/planning/${groupeId}`)}
+          onChoisi={(groupeId) => ouvrirProgramme(groupeId, true)}
         />
       ) : null}
     </div>

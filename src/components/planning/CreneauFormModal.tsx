@@ -373,7 +373,7 @@ export function CreneauFormModal({
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
       <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-border bg-surface p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-text">
+          <h2 className="text-xl font-bold text-text">
             {modeEdition ? "Modifier le créneau" : "Nouveau créneau"}
           </h2>
           <button onClick={onClose} className="rounded-lg p-1 hover:bg-surface-muted" aria-label="Fermer">
@@ -384,7 +384,7 @@ export function CreneauFormModal({
         <div className="flex flex-col gap-4">
           {/* UE */}
           <div>
-            <label className="text-base font-semibold text-text">Unité d&apos;enseignement</label>
+            <label className="text-lg font-bold text-text">Unité d&apos;enseignement</label>
             {ueSelectionnee ? (
               <p className="mt-1 text-xs text-text-muted">
                 Sélectionné : <span className="font-medium text-text">{ueSelectionnee.intitule}</span> (
@@ -447,7 +447,7 @@ export function CreneauFormModal({
 
           {/* Enseignant — liste recherchable (FR-FILT-04) */}
           <div>
-            <label className="text-base font-semibold text-text">Enseignant</label>
+            <label className="text-lg font-bold text-text">Enseignant</label>
             {enseignantSelectionne ? (
               <p className="mt-1 text-xs text-text-muted">
                 Sélectionné :{" "}
@@ -526,7 +526,7 @@ export function CreneauFormModal({
 
           {/* Groupe — jamais modifiable ici, cf. commentaire sur groupeChoisi */}
           <div>
-            <label className="text-base font-semibold text-text">Groupe</label>
+            <label className="text-lg font-bold text-text">Groupe</label>
             <p className="mt-1 w-full rounded-lg border border-border bg-surface-muted px-3 py-2 text-sm text-text">
               {groupeChoisi ? `${groupeChoisi.nom} (${groupeChoisi.effectif} étudiants)` : "—"}
             </p>
@@ -534,7 +534,7 @@ export function CreneauFormModal({
 
           {/* Salle — liste recherchable (FR-FILT-04) */}
           <div>
-            <label className="text-base font-semibold text-text">Salle</label>
+            <label className="text-lg font-bold text-text">Salle</label>
             {salleChoisie ? (
               <p className="mt-1 text-xs text-text-muted">
                 Sélectionnée :{" "}
@@ -590,7 +590,7 @@ export function CreneauFormModal({
 
           {/* Jours */}
           <div>
-            <label className="text-base font-semibold text-text">
+            <label className="text-lg font-bold text-text">
               {modeEdition ? "Jour" : "Jour(s) — un cours peut se répéter plusieurs fois par semaine"}
             </label>
             <div className="mt-1 flex flex-wrap gap-1.5">
@@ -617,7 +617,7 @@ export function CreneauFormModal({
           {/* Horaires */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-sm font-medium text-text">Début</label>
+              <label className="text-base font-semibold text-text">Début</label>
               <select
                 value={heureDebut}
                 onChange={(e) => setHeureDebut(e.target.value)}
@@ -631,7 +631,7 @@ export function CreneauFormModal({
               </select>
             </div>
             <div>
-              <label className="text-sm font-medium text-text">Fin</label>
+              <label className="text-base font-semibold text-text">Fin</label>
               <select
                 value={heureFin}
                 onChange={(e) => setHeureFin(e.target.value)}
@@ -653,7 +653,7 @@ export function CreneauFormModal({
           {/* Motif (édition/annulation) */}
           {modeEdition ? (
             <div>
-              <label className="text-sm font-medium text-text">Motif de la modification</label>
+              <label className="text-base font-semibold text-text">Motif de la modification</label>
               <input
                 type="text"
                 value={motif}
@@ -675,7 +675,7 @@ export function CreneauFormModal({
                 </div>
               ))}
               <div>
-                <label className="text-sm font-medium text-text">Motif de dérogation</label>
+                <label className="text-base font-semibold text-text">Motif de dérogation</label>
                 <input
                   type="text"
                   value={motifDerogation}

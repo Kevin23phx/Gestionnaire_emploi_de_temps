@@ -29,19 +29,17 @@ export default function JournalAuditPage() {
   const { brouillon, definirBrouillon, valeur, actualiser, reinitialiser, actifs, aActualise } = useFiltresManuel();
 
   const recherche = valeur("q");
-  const auteur = valeur("auteur");
   const depuis = valeur("depuis");
   const jusqua = valeur("jusqua");
 
   const requete = useMemo(() => {
     const params = new URLSearchParams();
     if (recherche.trim()) params.set("recherche", recherche.trim());
-    if (auteur.trim()) params.set("auteur", auteur.trim());
     if (depuis) params.set("depuis", depuis);
     if (jusqua) params.set("jusqua", jusqua);
     const chaine = params.toString();
     return chaine ? `/audit?${chaine}` : "/audit";
-  }, [recherche, auteur, depuis, jusqua]);
+  }, [recherche, depuis, jusqua]);
 
   useEffect(() => {
     if (!aActualise) return;
@@ -63,11 +61,13 @@ export default function JournalAuditPage() {
   }, [requete, aActualise]);
 
   const chargement = aActualise && requete !== requeteChargee;
-  // [2026-09] Retour des gestionnaires : Actualiser ne se débloque que si
-  // les 4 filtres (Recherche, Auteur, Du, Au) sont tous renseignés.
-  const peutActualiser = Boolean(
-    brouillon("q").trim() && brouillon("auteur").trim() && brouillon("depuis") && brouillon("jusqua")
-  );
+  // [2026-09] Retour du porteur de projet : c'est l'INTERVALLE DE DATES, et
+  // lui seul, qui débloque Actualiser. L'auteur a disparu des filtres : le
+  // journal se consulte par période (« qu'est-il arrivé cette semaine ? »),
+  // pas par personne — et exiger un nom qu'on ne connaît pas d'avance
+  // empêchait purement et simplement d'ouvrir le journal. La recherche
+  // texte reste disponible, en précision facultative.
+  const peutActualiser = Boolean(brouillon("depuis") && brouillon("jusqua"));
 
   return (
     <div>
@@ -94,16 +94,6 @@ export default function JournalAuditPage() {
         extra={
           <>
             <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-text-muted">Auteur</span>
-              <input
-                type="text"
-                value={brouillon("auteur")}
-                onChange={(e) => definirBrouillon("auteur", e.target.value)}
-                placeholder="Nom du gestionnaire"
-                className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text"
-              />
-            </label>
-            <label className="flex flex-col gap-1">
               <span className="text-xs font-medium text-text-muted">Du</span>
               <input
                 type="date"
@@ -127,7 +117,7 @@ export default function JournalAuditPage() {
 
       {!aActualise ? (
         <div className="rounded-xl border border-dashed border-border bg-surface p-8 text-center text-sm text-text-muted">
-          Renseignez Recherche, Auteur, Du et Au, puis cliquez sur Actualiser pour afficher le journal.
+          Choisissez une période (Du et Au), puis cliquez sur Actualiser pour afficher le journal.
         </div>
       ) : (
         <div className={`rounded-xl border border-border bg-surface ${chargement ? "opacity-60" : ""}`}>
