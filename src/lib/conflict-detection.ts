@@ -7,14 +7,12 @@
  */
 import type { ConflitDetecte, Creneau } from "./types";
 
+// [V4] `date` porte la vraie journée ("AAAA-MM-JJ") ; `jour` n'en est
+// qu'un libellé dérivé pour l'affichage, partagé par toutes les semaines
+// ("lundi" vaut pour chacune d'elles). Comparer sur `jour` faisait donc
+// entrer en conflit deux créneaux à des semaines d'écart dès qu'ils
+// tombaient sur le même nom de jour — corrigé pour comparer la date.
 function chevauchent(a: Creneau, b: Creneau): boolean {
-  // [V4] Comparaison sur la DATE, pas le jour de semaine — décalque du
-  // moteur backend (conflict_engine/services.py::_chevauchent). Un jeudi
-  // de telle semaine et le jeudi de la semaine suivante partagent le même
-  // `jour` ("jeudi") mais sont deux dates distinctes : sans ce correctif,
-  // programmer le même cours/enseignant deux semaines de suite déclenchait
-  // à tort une "double affectation", alors que c'est précisément ainsi que
-  // fonctionne un cours qui se répète chaque semaine.
   if (a.date !== b.date) return false;
   return a.heureDebut < b.heureFin && b.heureDebut < a.heureFin;
 }
@@ -35,7 +33,7 @@ export function detecterConflits(creneaux: Creneau[]): ConflitDetecte[] {
           type: "salle",
           gravite: "bloquant",
           titre: `Double réservation — ${a.salle.nom}`,
-          description: `${a.ue.intitule} et ${b.ue.intitule} sur le même créneau (${a.jour} ${a.heureDebut}-${a.heureFin}).`,
+          description: `${a.ue.intitule} et ${b.ue.intitule} sur le même créneau (${a.date} ${a.heureDebut}-${a.heureFin}).`,
           creneauxConcernes: [a.id, b.id],
         });
       }
@@ -74,7 +72,7 @@ export function detecterConflits(creneaux: Creneau[]): ConflitDetecte[] {
         type: "capacite",
         gravite: "avertissement",
         titre: `Capacité dépassée — ${c.salle.nom}`,
-        description: `Groupe ${c.groupe.nom} (${c.groupe.effectif} pers.) assigné dans une salle de ${c.salle.capacite} places (${c.jour} ${c.heureDebut}-${c.heureFin}).`,
+        description: `Groupe ${c.groupe.nom} (${c.groupe.effectif} pers.) assigné dans une salle de ${c.salle.capacite} places (${c.date} ${c.heureDebut}-${c.heureFin}).`,
         creneauxConcernes: [c.id],
       });
     }

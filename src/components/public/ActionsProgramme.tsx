@@ -218,7 +218,7 @@ export function ActionsProgramme({ programme }: { programme: ProgrammePublic }) 
               className="flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium text-text hover:bg-surface-muted"
             >
               {copie ? <Check className="h-4 w-4 text-status-success" aria-hidden="true" /> : <Copy className="h-4 w-4" aria-hidden="true" />}
-              {copie ? "Copié" : "Copier"}
+              {copie ? "Copié" : "Copier (Google Agenda, Outlook)"}
             </button>
           </div>
 
@@ -254,8 +254,10 @@ export function ActionsProgramme({ programme }: { programme: ProgrammePublic }) 
               « importer un fichier » : un fichier importé est une copie figée, il ne suivra aucune modification.
             </li>
             <li>
-              <strong className="font-medium text-text">iPhone</strong> : Réglages → Calendrier → Comptes → Ajouter un
-              abonnement
+              <strong className="font-medium text-text">iPhone, Mac</strong> : le bouton{" "}
+              <strong className="font-medium text-text">« Ouvrir directement dans Calendrier »</strong> ci-dessus
+              suffit — il évite de coller l&apos;adresse à la main, une saisie où le préfixe « https:// » se perd
+              facilement.
             </li>
             <li>
               <strong className="font-medium text-text">Outlook</strong> : Ajouter un calendrier → S&apos;abonner à
