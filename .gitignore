@@ -32,9 +32,20 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# .env.production ne contient que des URL publiques, aucun secret — et sa
+# perte casse silencieusement le build de prod (vécu le 2026-09-15 : sa
+# suppression accidentelle a fait tomber le relais /api sans qu'aucune
+# étape du build ne s'en plaigne). Suivi par git pour ne plus dépendre
+# d'un fichier local qui peut disparaître sans que personne ne le remarque.
+!.env.production
 
 # vercel
 .vercel
+
+# cloudflare (OpenNext)
+/.open-next/
+/.wrangler/
+.dev.vars
 
 # typescript
 *.tsbuildinfo

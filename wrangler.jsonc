@@ -1,0 +1,24 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "main": ".open-next/worker.js",
+  "name": "campus-manager",
+  "compatibility_date": "2026-09-14",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "campus-manager"
+    }
+  ],
+  // Backend distant (Render) — lu côté serveur à l'exécution (Server
+  // Components), pas seulement au build (voir .env.production et
+  // src/lib/api.ts). Pas une donnée sensible en soi (URL publique), un
+  // "var" simple suffit, pas besoin d'un secret Cloudflare.
+  "vars": {
+    "API_INTERNAL_URL": "https://gestionnaire-emploi-de-temps-backdjango.onrender.com/api"
+  }
+}

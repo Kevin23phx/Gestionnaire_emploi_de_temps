@@ -22,25 +22,39 @@
  * `credentials: "include"` et la configuration CORS côté Django), mais
  * toujours le même *site* — le cookie circule dans tous les cas.
  *
- * En production, `NEXT_PUBLIC_API_URL` reprend la main : l'API y vit sur un
- * autre domaine, et la déduction ci-dessus n'aurait plus de sens.
+ * En production (front sur Cloudflare, back sur Render — deux domaines,
+ * pas seulement deux ports), la déduction ci-dessus n'a plus de sens :
+ * `NEXT_PUBLIC_API_URL` vaut alors "/api", un chemin RELATIF. Le navigateur
+ * l'appelle donc sur SON PROPRE domaine (Cloudflare), qui le relaie vers
+ * Render (rewrite dans next.config.ts) — c'est ce qui compte : Set-Cookie
+ * revient alors comme si la réponse venait de notre domaine, donc le cookie
+ * s'y pose, au lieu de se poser sur onrender.com où aucune de nos pages ne
+ * pourrait jamais le relire côté serveur (cookies() ne voit que ce que LE
+ * NAVIGATEUR envoie à NOTRE domaine, jamais un cookie posé ailleurs).
+ *
+ * Le serveur (Server Components), lui, n'est jamais concerné par ce
+ * problème : il appelle Render en direct, hors du navigateur — aucune règle
+ * de same-origin/SameSite ne s'y applique, seul compte le retransfert manuel
+ * du cookie entrant (api-server.ts). D'où le double aiguillage ci-dessous :
+ * NEXT_PUBLIC_API_URL ne doit influencer QUE le client.
  */
 
-// Renseigné en production uniquement (ex. https://api.campus.ujkz.bf/api).
-// Laisser vide en développement pour bénéficier de la déduction dynamique.
+// Utilisé uniquement par le NAVIGATEUR. En prod : "/api" (relatif, proxié —
+// voir next.config.ts). Vide en dev pour la déduction dynamique ci-dessous.
 const API_URL_EXPLICITE = process.env.NEXT_PUBLIC_API_URL?.trim();
 
 // Port du backend. Django écoute sur 3001 par défaut (cf. backend_django/.env).
 const API_PORT = process.env.NEXT_PUBLIC_API_PORT?.trim() || "3001";
 
-// Utilisée par les Server Components (aucun `window` : le rendu se fait sur le
-// serveur, qui joint le backend en local). Surchargeable pour un déploiement
-// où les deux conteneurs ne partagent pas la boucle locale.
+// Utilisée par les Server Components (aucun `window` : le rendu se fait sur
+// le serveur). En dev, le backend tourne en local ; en prod, pointe Render
+// directement (jamais le chemin relatif ci-dessus, qui ne veut rien dire
+// hors d'un navigateur).
 const API_URL_INTERNE = process.env.API_INTERNAL_URL?.trim() || `http://127.0.0.1:${API_PORT}/api`;
 
 export function apiBaseUrl(): string {
-  if (API_URL_EXPLICITE) return API_URL_EXPLICITE;
   if (typeof window === "undefined") return API_URL_INTERNE;
+  if (API_URL_EXPLICITE) return API_URL_EXPLICITE;
   // Même protocole et même hôte que la page courante : c'est ce qui garantit
   // que le cookie de session est joint à la requête (voir en-tête).
   return `${window.location.protocol}//${window.location.hostname}:${API_PORT}/api`;

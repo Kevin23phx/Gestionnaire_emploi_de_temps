@@ -1,5 +1,6 @@
 import { networkInterfaces } from "node:os";
 import type { NextConfig } from "next";
+import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
 
 // Autorise le chargement des ressources de dev (JS, HMR) quand l'appli est
 // ouverte depuis une adresse autre que "localhost" — typiquement un téléphone
@@ -18,8 +19,24 @@ function adressesLocales(): string[] {
     .map((i) => i.address);
 }
 
+// Backend distant (Render) en production — absent en dev, où le backend
+// tourne en local et n'a besoin d'aucun relais (voir src/lib/api.ts).
+const BACKEND_DISTANT = process.env.API_INTERNAL_URL?.trim();
+
 const nextConfig: NextConfig = {
   allowedDevOrigins: adressesLocales(),
+  // Relaie /api/* vers le backend distant, SUR NOTRE PROPRE DOMAINE du point
+  // de vue du navigateur — condition nécessaire pour que le cookie de
+  // session se pose sur notre domaine plutôt que sur celui du backend (cf.
+  // le commentaire en tête de src/lib/api.ts pour le pourquoi complet).
+  async rewrites() {
+    if (!BACKEND_DISTANT) return [];
+    return [{ source: "/api/:path*", destination: `${BACKEND_DISTANT}/:path*` }];
+  },
 };
 
 export default nextConfig;
+
+// Donne à `next dev` accès aux bindings Cloudflare définis dans wrangler.jsonc
+// (aucun pour l'instant) — sans effet en dehors du mode dev.
+initOpenNextCloudflareForDev();
