@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
-import type { Departement, Groupe } from "@/lib/types";
-import { apiFetch } from "@/lib/api";
+import type { Departement, Groupe, Specialite } from "@/lib/types";
+import { apiFetch, lireReponse, messageErreur } from "@/lib/api";
 import { AUTRE, NIVEAUX, anneesAcademiques } from "@/lib/referentiel-options";
 
 // [V3.1] FR-REF-12/13 — département, niveau et année académique se
@@ -43,6 +43,15 @@ export function GroupeFormModal({
   const [departement, setDepartement] = useState("");
   const [departementLibre, setDepartementLibre] = useState("");
   const [niveau, setNiveau] = useState<string>(NIVEAUX[0]);
+  // [V8] Les spécialités chargées, ÉTIQUETÉES du couple (département,
+  // niveau) pour lequel elles l'ont été. Sans cette étiquette, une réponse
+  // lente pour la L2 s'afficherait comme étant celle de la L3 que l'on
+  // vient de sélectionner entre-temps.
+  const [specialitesChargees, setSpecialitesChargees] = useState<{
+    cle: string;
+    liste: Specialite[];
+  } | null>(null);
+  const [specialite, setSpecialite] = useState("");
   // L'année en cours est au milieu de la liste (précédente, courante,
   // suivante) : c'est le choix juste dans l'immense majorité des cas.
   const [anneeAcademique, setAnneeAcademique] = useState(annees[1]);
@@ -70,6 +79,62 @@ export function GroupeFormModal({
   }, []);
 
   const departementRetenu = departement === AUTRE ? departementLibre.trim() : departement;
+  const departementChoisiId = (departements ?? []).find((d) => d.libelle === departement)?.id;
+
+  // Identifiant du couple (département, niveau) dont les spécialités sont
+  // pertinentes en cet instant. Chaîne vide tant qu'aucun département du
+  // référentiel n'est choisi.
+  const cleSpecialites = departementChoisiId ? `${departementChoisiId}|${niveau}` : "";
+
+  // Dérivé, jamais posé dans un effet : `[]` quand il n'y a rien à charger
+  // ou que la réponse est arrivée vide (tronc commun), `null` tant que la
+  // réponse du couple COURANT n'est pas là (chargement). Calculer plutôt
+  // que stocker évite l'instant où l'écran montre la liste du couple
+  // précédent en la présentant comme celle du nouveau.
+  const specialites: Specialite[] | null = !cleSpecialites
+    ? []
+    : specialitesChargees?.cle === cleSpecialites
+      ? specialitesChargees.liste
+      : null;
+
+  // [V8] Les spécialités dépendent du COUPLE (département, niveau) : c'est
+  // ce qui permet à une L1 de portail (MPCI) de n'en proposer aucune alors
+  // que la L2 du même département en propose quatre.
+  //
+  // Rien n'est chargé pour un département saisi librement (« + Autre ») :
+  // il n'existe pas encore au référentiel, donc aucune spécialité ne peut
+  // lui être rattachée — elles se déclarent dans l'écran Spécialités, une
+  // fois le département créé.
+  //
+  // La dépendance est l'IDENTIFIANT du département, pas l'objet : un
+  // `.find()` renvoie un objet neuf à chaque rendu, et l'effet serait
+  // reparti en boucle à chaque frappe dans le formulaire.
+  useEffect(() => {
+    if (!departementChoisiId) return;
+    let annule = false;
+    const cle = `${departementChoisiId}|${niveau}`;
+    const params = new URLSearchParams({ departementId: departementChoisiId, niveau });
+    apiFetch(`/specialites?${params.toString()}`)
+      .then((r) => r.json())
+      .then((data: { specialites: Specialite[] }) => {
+        if (!annule) setSpecialitesChargees({ cle, liste: data.specialites });
+      })
+      .catch(() => {
+        if (!annule) setSpecialitesChargees({ cle, liste: [] });
+      });
+    return () => {
+      annule = true;
+    };
+  }, [departementChoisiId, niveau]);
+
+  // Le choix ne survit pas à un changement de couple : une spécialité de L2
+  // n'a aucune raison d'exister en L3. Filtré à la lecture plutôt que remis
+  // à zéro par un effet — un `setSpecialite("")` déclenché par le
+  // chargement ferait clignoter le champ, et effacerait le choix même quand
+  // il reste valide.
+  const specialiteRetenue = (specialites ?? []).some((sp) => sp.libelle === specialite)
+    ? specialite
+    : "";
 
   async function handleSubmit() {
     if (!nom.trim() || !departementRetenu) {
@@ -96,26 +161,37 @@ export function GroupeFormModal({
       }).catch(() => {});
     }
 
-    const reponse = await apiFetch("/groupes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        nom,
-        departement: departementRetenu,
-        niveau,
-        anneeAcademique,
-        effectif: effectif === "" ? 0 : nombre,
-      }),
-    });
-    const data = await reponse.json();
-    setEnCours(false);
+    // [V8] `try/finally` et `lireReponse` : un serveur qui répond autre
+    // chose que du JSON (erreur 500 rendue en HTML, coupure réseau) faisait
+    // lever `reponse.json()` AVANT le `setEnCours(false)` — le bouton
+    // restait alors bloqué sur « Création... », indéfiniment et sans
+    // message. Incident reproduit le 2026-09-21 sur l'écran Spécialités ;
+    // voir `lireReponse` dans src/lib/api.ts.
+    try {
+      const reponse = await apiFetch("/groupes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nom,
+          departement: departementRetenu,
+          niveau,
+          specialite: specialiteRetenue,
+          anneeAcademique,
+          effectif: effectif === "" ? 0 : nombre,
+        }),
+      });
+      const data = await lireReponse<{ erreur?: string; groupe?: Groupe }>(reponse);
 
-    if (!reponse.ok) {
-      setErreur(data.erreur ?? "Impossible de créer le groupe.");
-      return;
+      if (!reponse.ok || !data.groupe) {
+        setErreur(messageErreur(reponse, data, "Impossible de créer le groupe."));
+        return;
+      }
+      onSave(data.groupe);
+    } catch {
+      setErreur("Le serveur est injoignable. Vérifiez votre connexion, puis réessayez.");
+    } finally {
+      setEnCours(false);
     }
-
-    onSave(data.groupe);
   }
 
   return (
@@ -184,8 +260,11 @@ export function GroupeFormModal({
 
           <div className="flex gap-3">
             <div className="flex-1">
+              {/* [V8] « Niveau » et non « Parcours » : ce champ a toujours
+                  contenu des niveaux du LMD, c'est son libellé qui était
+                  faux. Le parcours est devenu la spécialité, ci-dessous. */}
               <label htmlFor="groupe-niveau" className="text-sm font-medium text-text">
-                Parcours
+                Niveau
               </label>
               <select
                 id="groupe-niveau"
@@ -218,6 +297,41 @@ export function GroupeFormModal({
                 ))}
               </select>
             </div>
+          </div>
+
+          {/* [V8] Spécialité — inactive tant que le niveau choisi n'en
+              propose aucune, avec la raison écrite en dessous. Facultative
+              par construction : une L1 de tronc commun n'en a pas, et la
+              rendre obligatoire interdirait de créer ces groupes-là. */}
+          <div>
+            <label htmlFor="groupe-specialite" className="text-sm font-medium text-text">
+              Spécialité
+            </label>
+            <select
+              id="groupe-specialite"
+              value={specialiteRetenue}
+              onChange={(e) => setSpecialite(e.target.value)}
+              disabled={specialites === null || specialites.length === 0}
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm disabled:opacity-60"
+            >
+              <option value="">
+                {specialites === null
+                  ? "Chargement..."
+                  : specialites.length === 0
+                    ? "Aucune à ce niveau"
+                    : "Choisir..."}
+              </option>
+              {(specialites ?? []).map((sp) => (
+                <option key={sp.id} value={sp.libelle}>
+                  {sp.libelle}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-text-subtle">
+              {specialites !== null && specialites.length === 0
+                ? `${niveau} n'a pas de spécialité dans ce département : c'est un tronc commun. Pour en ouvrir une, passez par l'écran Spécialités.`
+                : "Le choix que suit ce groupe. L'étudiant le retrouvera dans la recherche publique."}
+            </p>
           </div>
 
           <div>

@@ -77,7 +77,7 @@ export default function GroupesPage() {
     [tous, valeur]
   );
   // [2026-09] Retour des gestionnaires : Actualiser ne se débloque que si
-  // les 3 filtres (Département, Parcours, Année) sont tous renseignés.
+  // les 3 filtres (Département, Niveau, Année) sont tous renseignés.
   const peutActualiser = Boolean(brouillon("departement") && brouillon("niveau") && brouillon("annee"));
 
   function commencerEdition(groupe: Groupe) {
@@ -139,7 +139,7 @@ export default function GroupesPage() {
         placeholder="Rechercher une promotion ou un département..."
         filtres={[
           { cle: "departement", label: "Département", options: departements },
-          { cle: "niveau", label: "Parcours", options: [...NIVEAUX] },
+          { cle: "niveau", label: "Niveau", options: [...NIVEAUX] },
           { cle: "annee", label: "Année", options: anneesAcademiques() },
         ]}
         valeur={brouillon}
@@ -159,7 +159,7 @@ export default function GroupesPage() {
 
       {!aActualise ? (
         <div className="rounded-xl border border-dashed border-border bg-surface p-8 text-center text-sm text-text-muted">
-          Choisissez un Département, un Parcours et une Année, puis cliquez sur Actualiser pour afficher les
+          Choisissez un Département, un Niveau et une Année, puis cliquez sur Actualiser pour afficher les
           promotions.
         </div>
       ) : (
@@ -179,12 +179,16 @@ export default function GroupesPage() {
           ) : null}
 
           <div className="overflow-x-auto rounded-xl border border-border bg-surface">
-            <table className="w-full min-w-[560px] text-left text-sm">
+            <table className="w-full min-w-[680px] text-left text-sm">
               <thead>
                 <tr className="text-xs uppercase tracking-wide text-text-subtle">
                   <th className="px-4 py-2 font-medium">Promotion</th>
                   <th className="px-4 py-2 font-medium">Département</th>
-                  <th className="px-4 py-2 font-medium">Parcours</th>
+                  {/* [V8] « Niveau » et non « Parcours » : cette colonne a
+                      toujours affiché groupe.niveau. Le parcours est
+                      devenu la spécialité, colonne suivante. */}
+                  <th className="px-4 py-2 font-medium">Niveau</th>
+                  <th className="px-4 py-2 font-medium">Spécialité</th>
                   <th className="px-4 py-2 font-medium">Nombre d&apos;étudiants</th>
                 </tr>
               </thead>
@@ -204,6 +208,12 @@ export default function GroupesPage() {
                     </td>
                     <td className="px-4 py-2 text-text-muted">{groupe.departement}</td>
                     <td className="px-4 py-2 text-text-muted">{groupe.niveau}</td>
+                    <td className="px-4 py-2 text-text-muted">
+                      {/* Un tiret, pas une cellule vide : « ce niveau est un
+                          tronc commun » est une information, une case
+                          blanche ressemble à un oubli de saisie. */}
+                      {groupe.specialite || <span className="text-text-subtle">—</span>}
+                    </td>
                     <td className="px-4 py-2">
                       {enEdition === groupe.id ? (
                         <div className="flex items-center gap-1">

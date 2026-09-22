@@ -13,11 +13,12 @@ export default function AidePage() {
 
       <h2 className="mt-8 text-lg font-semibold text-text">Consulter un emploi du temps</h2>
       <p className="mt-2 text-text-muted">
-        Aucun compte n&apos;est nécessaire. Depuis l&apos;accueil, choisissez votre établissement (UFR, institut ou
-        école doctorale), votre département puis votre
-        niveau : le programme de votre groupe s&apos;affiche. Vous pouvez ensuite le garder en favori sur votre
-        appareil, ou l&apos;ajouter à l&apos;agenda de votre téléphone pour recevoir automatiquement les
-        changements.
+        Aucun compte n&apos;est nécessaire. Depuis l&apos;accueil, choisissez votre année académique, votre
+        établissement (UFR, institut ou école doctorale), votre département et votre parcours, puis cliquez sur
+        Actualiser : le programme de votre groupe s&apos;affiche — ou, s&apos;il n&apos;est pas encore publié, la page
+        vous le dit. Vous pouvez ensuite le garder en favori sur votre appareil, ou l&apos;ajouter à l&apos;agenda de
+        votre téléphone pour recevoir automatiquement les changements. Le dernier programme consulté reste
+        lisible sans réseau.
       </p>
 
       <h2 className="mt-8 text-lg font-semibold text-text">Signaler une absence (enseignants)</h2>
@@ -49,8 +50,9 @@ export default function AidePage() {
         </li>
         <li>
           <span className="font-medium text-text">Ce qui ne l&apos;est pas :</span> aucune donnée nominative
-          d&apos;étudiant. Ni INE, ni nom, ni liste des inscrits d&apos;un groupe ne sont accessibles depuis les
-          pages publiques ; ces données restent réservées à la scolarité de l&apos;UFR concernée.
+          d&apos;étudiant. Campus Manager n&apos;enregistre d&apos;ailleurs ni INE, ni nom, ni liste des inscrits :
+          seul l&apos;effectif d&apos;un groupe est connu, pour vérifier la capacité des salles, et il n&apos;est
+          jamais publié.
         </li>
         <li>
           <span className="font-medium text-text">Ce que le site retient de vous :</span> rien sur nos serveurs.

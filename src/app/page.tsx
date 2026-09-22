@@ -1,6 +1,6 @@
-import Image from "next/image";
 import Link from "next/link";
 import { CalendarPlus, Star, WifiOff } from "lucide-react";
+import { EntreeGestionnaire } from "@/components/layout/EntreeGestionnaire";
 import { ListeFavoris } from "@/components/public/ListeFavoris";
 import { RechercheProgramme } from "@/components/public/RechercheProgramme";
 
@@ -34,24 +34,14 @@ const ATOUTS = [
 export default function AccueilPage() {
   return (
     <div className="flex flex-1 flex-col">
-      <header className="flex items-center justify-between gap-2 border-b border-border bg-surface px-4 py-4 sm:px-6">
+      <header className="flex items-center gap-2 border-b border-border bg-surface px-4 py-4 sm:px-6">
         <div className="flex min-w-0 items-center gap-2">
-          <Image
-            src="/logo-universite.png"
-            alt="Université Joseph Ki-Zerbo"
-            width={36}
-            height={36}
-            priority
-            className="h-9 w-9 shrink-0 object-contain"
-          />
+          {/* [V8.2] Le logo EST l'entrée vers l'espace de connexion, par
+              double-clic — voir EntreeGestionnaire pour le pourquoi et les
+              limites. Rien ne le signale, c'est l'objet même du changement. */}
+          <EntreeGestionnaire />
           <span className="truncate text-lg font-bold text-brand">Campus Manager</span>
         </div>
-        <Link
-          href="/connexion"
-          className="shrink-0 rounded-lg border border-border px-3 py-2 text-sm font-medium text-text-muted transition-colors hover:bg-surface-muted hover:text-text sm:px-4"
-        >
-          Espace gestionnaire
-        </Link>
       </header>
 
       <main className="flex flex-1 flex-col items-center px-6 py-12">

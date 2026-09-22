@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarDays, Plus } from "lucide-react";
-import type { Creneau, Departement, Groupe } from "@/lib/types";
+import type { Creneau, Departement, Groupe, Specialite } from "@/lib/types";
 import { NouveauProgrammeModal } from "@/components/planning/NouveauProgrammeModal";
 import { BarreFiltres } from "@/components/filtres/BarreFiltres";
 import { apiFetch } from "@/lib/api";
@@ -22,6 +22,10 @@ export default function ListeProgrammesPage() {
   const [groupes, setGroupes] = useState<Groupe[] | null>(null);
   const [creneaux, setCreneaux] = useState<Creneau[] | null>(null);
   const [departementsRef, setDepartementsRef] = useState<Departement[] | null>(null);
+  // [V8.1] Le référentiel des spécialités de l'établissement, chargé une
+  // fois avec les départements : chaque carte de programme doit pouvoir
+  // dire quelles spécialités son niveau propose.
+  const [specialitesRef, setSpecialitesRef] = useState<Specialite[] | null>(null);
   const [modalOuvert, setModalOuvert] = useState(false);
   const { brouillon, definirBrouillon, valeur, actualiser, reinitialiser, actifs, aActualise } = useFiltresManuel();
 
@@ -29,6 +33,10 @@ export default function ListeProgrammesPage() {
     apiFetch("/departements")
       .then((r) => r.json())
       .then((data) => setDepartementsRef(data.departements));
+    apiFetch("/specialites")
+      .then((r) => r.json())
+      .then((data) => setSpecialitesRef(data.specialites ?? []))
+      .catch(() => setSpecialitesRef([]));
   }, []);
 
   useEffect(() => {
@@ -68,7 +76,7 @@ export default function ListeProgrammesPage() {
     [tous, valeur]
   );
   // [2026-09] Retour des gestionnaires : Actualiser ne se débloque que si
-  // les 3 filtres (Département, Parcours, Année) sont tous renseignés.
+  // les 3 filtres (Département, Niveau, Année) sont tous renseignés.
   const peutActualiser = Boolean(brouillon("departement") && brouillon("niveau") && brouillon("annee"));
 
   // [2026-09] Les filtres committés voyagent avec la navigation vers un
@@ -84,8 +92,15 @@ export default function ListeProgrammesPage() {
     return params.toString();
   }, [valeur]);
 
-  function ouvrirProgramme(groupeId: string) {
-    router.push(`/scolarite/planning/${groupeId}?${filtresQuery}`);
+  function ouvrirProgramme(groupeId: string, specialite = "") {
+    // [V8.1] La spécialité choisie en ouvrant le programme s'ajoute aux
+    // filtres de la liste, qui voyagent déjà dans l'URL (cf. plus bas).
+    // Elle commande la vue de la feuille et l'affectation par défaut des
+    // créneaux qu'on y créera.
+    const params = new URLSearchParams(filtresQuery);
+    if (specialite) params.set("specialite", specialite);
+    const requete = params.toString();
+    router.push(`/scolarite/planning/${groupeId}${requete ? `?${requete}` : ""}`);
   }
 
   // [2026-09] Retour des gestionnaires : une fois le filtre appliqué, le
@@ -135,7 +150,7 @@ export default function ListeProgrammesPage() {
             label: "Département",
             options: valeursDistinctes(departementsRef ?? [], (d) => d.libelle),
           },
-          { cle: "niveau", label: "Parcours", options: [...NIVEAUX] },
+          { cle: "niveau", label: "Niveau", options: [...NIVEAUX] },
           { cle: "annee", label: "Année", options: anneesAcademiques() },
         ]}
         valeur={brouillon}
@@ -151,7 +166,7 @@ export default function ListeProgrammesPage() {
 
       {!aActualise ? (
         <div className="rounded-xl border border-dashed border-border bg-surface p-8 text-center text-sm text-text-muted">
-          Choisissez un Département, un Parcours et une Année, puis cliquez sur Actualiser pour afficher les
+          Choisissez un Département, un Niveau et une Année, puis cliquez sur Actualiser pour afficher les
           programmes.
         </div>
       ) : !pretes ? (
@@ -164,29 +179,89 @@ export default function ListeProgrammesPage() {
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filtres.map((groupe) => {
-            const nbCreneaux = creneaux.filter((c) => c.groupe.id === groupe.id).length;
+            const creneauxDuGroupe = creneaux.filter((c) => c.groupe.id === groupe.id);
+            const nbCreneaux = creneauxDuGroupe.length;
+            // [V8.1] Les spécialités du couple (département, niveau) de ce
+            // groupe. Une carte de tronc commun n'en a aucune et garde donc
+            // l'apparence d'avant la réforme.
+            const specialites = (specialitesRef ?? []).filter(
+              (sp) => sp.departement === groupe.departement && sp.niveau === groupe.niveau
+            );
             return (
-              <button
+              // [V8.1] Une carte, PLUSIEURS entrées — le programme d'un
+              // groupe n'est plus une porte unique.
+              //
+              // Défaut corrigé le 2026-09-22 : cliquer sur une carte
+              // ouvrait toujours la vue « Tout le groupe », sans jamais
+              // demander la spécialité. Le Gestionnaire qui avait saisi un
+              // programme pour « science du cerveau » le rouvrait avec les
+              // cours de toutes les spécialités mêlés, et ne retrouvait pas
+              // son travail.
+              //
+              // Des raccourcis sur la carte plutôt qu'une fenêtre de choix :
+              // la fenêtre aurait ajouté un clic à CHAQUE ouverture, y
+              // compris pour un tronc commun où il n'y a rien à choisir, et
+              // surtout elle n'aurait rien montré. Ici la carte répond à la
+              // question avant qu'on la pose — quelles spécialités existent,
+              // et combien de cours chacune porte déjà.
+              <div
                 key={groupe.id}
-                onClick={() => ouvrirProgramme(groupe.id)}
-                className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-4 text-left transition-colors hover:border-brand hover:bg-brand-light"
+                className="flex flex-col rounded-xl border border-border bg-surface transition-colors hover:border-brand"
               >
-                <div className="flex items-center gap-2">
-                  <CalendarDays className="h-4 w-4 text-brand" aria-hidden="true" />
-                  <span className="font-semibold text-text">{groupe.nom}</span>
-                </div>
-                <p className="text-xs text-text-muted">
-                  {/* [V3.3] L'année académique fait partie de l'identité d'un
-                      groupe : « L3 INFO - Groupe A » existe en 2025-2026 ET en
-                      2026-2027, ce sont deux programmes différents. Sans elle
-                      à l'écran, rien ne distingue la promotion courante de la
-                      précédente. */}
-                  {groupe.departement} · {groupe.niveau} · {groupe.anneeAcademique} · {groupe.effectif} étudiants
-                </p>
-                <p className="mt-1 text-xs font-medium text-text-subtle">
-                  {nbCreneaux > 0 ? `${nbCreneaux} créneau${nbCreneaux > 1 ? "x" : ""}` : "Programme vide"}
-                </p>
-              </button>
+                <button
+                  onClick={() => ouvrirProgramme(groupe.id)}
+                  className="flex flex-col gap-2 rounded-t-xl p-4 text-left hover:bg-brand-light"
+                >
+                  <div className="flex items-center gap-2">
+                    <CalendarDays className="h-4 w-4 text-brand" aria-hidden="true" />
+                    <span className="font-semibold text-text">{groupe.nom}</span>
+                  </div>
+                  <p className="text-xs text-text-muted">
+                    {/* [V3.3] L'année académique fait partie de l'identité d'un
+                        groupe : « L3 INFO - Groupe A » existe en 2025-2026 ET en
+                        2026-2027, ce sont deux programmes différents. Sans elle
+                        à l'écran, rien ne distingue la promotion courante de la
+                        précédente. */}
+                    {groupe.departement} · {groupe.niveau} · {groupe.anneeAcademique} · {groupe.effectif} étudiants
+                  </p>
+                  <p className="mt-1 text-xs font-medium text-text-subtle">
+                    {nbCreneaux > 0 ? `${nbCreneaux} créneau${nbCreneaux > 1 ? "x" : ""}` : "Programme vide"}
+                    {specialites.length > 0 ? " · toutes spécialités" : ""}
+                  </p>
+                </button>
+
+                {specialites.length > 0 ? (
+                  <div className="border-t border-border px-4 py-3">
+                    <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-text-subtle">
+                      Ouvrir pour une spécialité
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {specialites.map((sp) => {
+                        // Les cours AFFECTÉS à cette spécialité, pas ceux
+                        // qu'un étudiant y verrait (qui incluraient le tronc
+                        // commun) : c'est le repère que cherche le
+                        // Gestionnaire — « ce que j'ai saisi ici ».
+                        const nb = creneauxDuGroupe.filter(
+                          (c) => c.specialite.toLowerCase() === sp.libelle.toLowerCase()
+                        ).length;
+                        return (
+                          <button
+                            key={sp.id}
+                            onClick={() => ouvrirProgramme(groupe.id, sp.libelle)}
+                            className="rounded-lg border border-border px-2.5 py-1 text-xs text-text-muted transition-colors hover:border-brand hover:bg-brand-light hover:text-brand"
+                          >
+                            {sp.libelle}
+                            {/* Le compteur n'apparaît qu'à partir de 1 : un
+                                « 0 » collé à chaque spécialité encore vide
+                                ferait lire l'écran comme une liste d'échecs. */}
+                            {nb > 0 ? <span className="ml-1 font-semibold">{nb}</span> : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
             );
           })}
           {filtres.length === 0 ? (
@@ -201,7 +276,7 @@ export default function ListeProgrammesPage() {
         <NouveauProgrammeModal
           groupes={filtres}
           onClose={() => setModalOuvert(false)}
-          onChoisi={(groupeId) => ouvrirProgramme(groupeId)}
+          onChoisi={(groupeId, specialite) => ouvrirProgramme(groupeId, specialite)}
         />
       ) : null}
     </div>

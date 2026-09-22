@@ -21,6 +21,26 @@ import { useFiltresManuel } from "@/lib/filtres";
 // explicite sur "Actualiser" — remplace l'ancien anti-rebond automatique
 // sur la saisie, devenu inutile puisque la saisie ne déclenche plus rien
 // tant que le clic n'a pas eu lieu.
+// FR-AUD-02 — export du journal : exactement les entrées affichées, donc
+// celles que les filtres ont retenues. Généré dans le navigateur : les
+// données sont déjà là, un aller-retour serveur n'apporterait rien.
+//
+// Point-virgule et BOM UTF-8 : c'est ce qu'attend Excel en français pour
+// ouvrir le fichier d'un double-clic, colonnes séparées et accents intacts.
+function exporterCsv(entries: AuditEntry[], depuis: string, jusqua: string) {
+  const cellule = (valeur: string) => `"${valeur.replace(/"/g, '""')}"`;
+  const lignes = [
+    ["Utilisateur", "Date et heure", "Action", "Motif"],
+    ...entries.map((e) => [e.auteur, new Date(e.dateHeure).toLocaleString("fr-FR"), e.action, e.motif]),
+  ];
+  const contenu = "\uFEFF" + lignes.map((l) => l.map(cellule).join(";")).join("\r\n");
+  const lien = document.createElement("a");
+  lien.href = URL.createObjectURL(new Blob([contenu], { type: "text/csv;charset=utf-8" }));
+  lien.download = `journal-audit_${depuis}_${jusqua}.csv`;
+  lien.click();
+  URL.revokeObjectURL(lien.href);
+}
+
 export default function JournalAuditPage() {
   const [entries, setEntries] = useState<AuditEntry[] | null>(null);
   // Dérivé plutôt qu'un booléen posé dans l'effet : la requête en cours de
@@ -73,8 +93,13 @@ export default function JournalAuditPage() {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-xl font-bold text-text">Journal d&apos;audit</h1>
-        {/* FR-AUD-02 : export à brancher sur l'API une fois disponible */}
-        <button className="flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium text-text hover:bg-surface-muted">
+        {/* Désactivé tant qu'il n'y a rien à exporter : un bouton actif qui
+            ne produit rien laisserait croire à une panne. */}
+        <button
+          onClick={() => entries && exporterCsv(entries, depuis, jusqua)}
+          disabled={!entries || entries.length === 0 || chargement}
+          className="flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium text-text hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-40"
+        >
           <Download className="h-4 w-4" aria-hidden="true" />
           Exporter
         </button>

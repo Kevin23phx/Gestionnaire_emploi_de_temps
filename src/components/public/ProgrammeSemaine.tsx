@@ -41,6 +41,15 @@ function Seance({ seance }: { seance: SeancePublique }) {
       </p>
       <p className="text-xs text-text-muted">{seance.salle.nom}</p>
       <p className="text-xs text-text-muted">{seance.enseignant}</p>
+      {/* [V8.1] Dit à qui la séance s'adresse. Affiché seulement quand elle
+          est affectée : un cours de tronc commun n'a rien à préciser, et
+          étiqueter chaque ligne « toute la promotion » noierait justement
+          celles qui comptent. C'est ce marqueur qui permet à l'étudiant de
+          distinguer, sur sa propre feuille, ce qu'il suit avec toute sa
+          promotion de ce qu'il suit avec sa seule spécialité. */}
+      {seance.specialite ? (
+        <p className="text-xs font-medium text-brand">{seance.specialite}</p>
+      ) : null}
       {seance.motif ? <p className="text-xs italic text-text-subtle">Motif : {seance.motif}</p> : null}
     </div>
   );

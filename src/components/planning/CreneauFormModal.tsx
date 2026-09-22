@@ -7,6 +7,7 @@ import type {
   Enseignant,
   Groupe,
   Salle,
+  Specialite,
   UniteEnseignement,
 } from "@/lib/types";
 import { detecterConflits } from "@/lib/conflict-detection";
@@ -33,6 +34,15 @@ const OPTIONS_HEURE = Array.from(
   (_, i) => `${String(HEURE_MIN + i).padStart(2, "0")}:00`
 );
 
+// Ajoute à la grille horaire une heure qui n'y figure pas. Le découpage
+// autour des pauses produit des séances qui commencent à 10:15 ou 15:15 :
+// sans cet ajout, modifier l'une d'elles donnait une liste déroulante qui
+// ne contenait pas sa valeur — le navigateur affichait alors 07:00 alors que
+// la séance commence à 10:15, et rien ne permettait de la resélectionner.
+function avecHeure(options: string[], heure: string | undefined): string[] {
+  return heure && !options.includes(heure) ? [...options, heure].sort() : options;
+}
+
 const NOUVEL_ENSEIGNANT = "__nouveau__";
 const NOUVELLE_UE = "__nouvelle__";
 
@@ -44,6 +54,17 @@ interface Props {
   creneauxExistants: Creneau[]; // ne contient pas `creneau`
   enseignants: Enseignant[];
   groupes: Groupe[];
+  // [V8.1] Spécialités ouvertes au couple (département, niveau) du groupe.
+  // Vide = ce niveau est un tronc commun, le champ d'affectation reste
+  // inerte et tout créneau concerne la promotion entière.
+  specialites: Specialite[];
+  // [V8.1] Spécialité choisie en ouvrant le programme : l'affectation est
+  // PRÉ-REMPLIE avec elle. C'est le geste décrit par le porteur de projet
+  // — « une spécialité que je vais au préalable choisir » — et ce qui rend
+  // la saisie d'une série de cours supportable : on la choisit une fois en
+  // haut de l'écran, pas à chaque créneau. Reste modifiable ici, pour poser
+  // un cours commun sans quitter la vue d'une spécialité.
+  specialiteParDefaut: string;
   salles: Salle[];
   unitesEnseignement: UniteEnseignement[];
   onClose: () => void;
@@ -75,6 +96,8 @@ export function CreneauFormModal({
   creneauxExistants,
   enseignants,
   groupes,
+  specialites,
+  specialiteParDefaut,
   salles,
   unitesEnseignement,
   onClose,
@@ -109,6 +132,10 @@ export function CreneauFormModal({
       versIso(ajouterJours(depuisIso(lundi), JOURS.findIndex((x) => x.value === j))),
     [lundi]
   );
+  // En édition, l'affectation du créneau ; en création, celle de la vue
+  // courante. Jamais une valeur devinée : un créneau existant garde la
+  // sienne même si l'écran affiche une autre spécialité.
+  const [specialite, setSpecialite] = useState(creneau?.specialite ?? specialiteParDefaut);
   const [heureDebut, setHeureDebut] = useState(creneau?.heureDebut ?? "08:00");
   const [heureFin, setHeureFin] = useState(creneau?.heureFin ?? "10:00");
   const [motif, setMotif] = useState("");
@@ -127,7 +154,26 @@ export function CreneauFormModal({
   // 2026-08-18) : on prend directement l'objet, jamais une recherche par id.
   const groupeChoisi = creneau?.groupe ?? groupes[0];
   const salleChoisie = salles.find((s) => s.id === salleId);
-  const optionsHeureFin = OPTIONS_HEURE.filter((h) => h > heureDebut);
+  const optionsHeure = useMemo(
+    () => avecHeure(avecHeure(OPTIONS_HEURE, creneau?.heureDebut), creneau?.heureFin),
+    [creneau]
+  );
+  // La dernière heure ne peut pas être un début : aucune fin possible après.
+  const optionsHeureDebut = optionsHeure.slice(0, -1);
+  const optionsHeureFin = optionsHeure.filter((h) => h > heureDebut);
+
+  // Repousser le début au-delà de la fin laissait l'ancienne fin en mémoire,
+  // alors que la liste « Fin », elle, n'affichait plus que des heures
+  // postérieures : l'écran montrait 11:00 → 12:00 et l'enregistrement
+  // répondait « l'heure de fin doit être après l'heure de début ». La fin
+  // suit donc le début, au moment même du choix.
+  function changerHeureDebut(nouvelle: string) {
+    setHeureDebut(nouvelle);
+    if (heureFin <= nouvelle) {
+      const suivante = optionsHeure.find((h) => h > nouvelle);
+      if (suivante) setHeureFin(suivante);
+    }
+  }
   const ueSelectionnee = ueId !== NOUVELLE_UE ? unitesEnseignement.find((u) => u.id === ueId) : undefined;
   const enseignantSelectionne =
     enseignantId !== NOUVEL_ENSEIGNANT ? enseignants.find((e) => e.id === enseignantId) : undefined;
@@ -211,6 +257,12 @@ export function CreneauFormModal({
           heureDebut: segment.heureDebut,
           heureFin: segment.heureFin,
           statut: creneau?.statut ?? "normal",
+          // [V8.1] Indispensable ici : c'est elle qui décide si l'aperçu
+          // signale un conflit de groupe. Sans elle, un cours de Chimie
+          // posé en face d'un cours d'Informatique s'annoncerait en
+          // conflit à l'écran alors que le serveur l'accepte — et le
+          // Gestionnaire ne saurait pas lequel croire.
+          specialite,
           // Aperçu local pour le calcul de conflits en direct : la révision
           // n'a de sens qu'une fois enregistrée côté serveur.
           version: creneau?.version ?? 0,
@@ -234,6 +286,7 @@ export function CreneauFormModal({
     enseignantId,
     nouvelEnseignant,
     enseignants,
+    specialite,
   ]);
 
   const conflits = useMemo(() => {
@@ -305,6 +358,11 @@ export function CreneauFormModal({
       return null;
     }
     onUeCree(data.ue);
+    // Le cours existe désormais : on le sélectionne. Sinon, si le serveur
+    // refuse ensuite le créneau (conflit 409) et que le gestionnaire
+    // réessaie avec un motif de dérogation, ce second clic recréait le même
+    // cours — refusé comme doublon, ce qui bloquait la saisie.
+    setUeId(data.ue.id);
     return data.ue as UniteEnseignement;
   }
 
@@ -324,6 +382,9 @@ export function CreneauFormModal({
       return null;
     }
     onEnseignantCree(data.enseignant);
+    // Même raison que pour le cours — ici sans garde-fou côté serveur (aucune
+    // unicité sur nom/prénom) : le second clic créait un doublon silencieux.
+    setEnseignantId(data.enseignant.id);
     return data.enseignant as Enseignant;
   }
 
@@ -532,6 +593,38 @@ export function CreneauFormModal({
             </p>
           </div>
 
+          {/* [V8.1] AFFECTATION — à qui ce cours s'adresse dans le groupe.
+              Placée juste sous le Groupe : c'est la même question, affinée.
+              Inerte quand le niveau n'ouvre aucune spécialité. */}
+          <div>
+            <label htmlFor="creneau-specialite" className="text-lg font-bold text-text">
+              Affecter à
+            </label>
+            <select
+              id="creneau-specialite"
+              value={specialite}
+              onChange={(e) => setSpecialite(e.target.value)}
+              disabled={specialites.length === 0}
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm disabled:opacity-60"
+            >
+              <option value="">
+                {specialites.length === 0
+                  ? "Tout le groupe (aucune spécialité à ce niveau)"
+                  : "Tout le groupe (tronc commun)"}
+              </option>
+              {specialites.map((sp) => (
+                <option key={sp.id} value={sp.libelle}>
+                  {sp.libelle}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-text-subtle">
+              {specialite
+                ? `Seuls les étudiants de « ${specialite} » sont concernés. Un autre cours peut donc se tenir à la même heure pour une autre spécialité.`
+                : "Ce cours concerne toute la promotion. Aucun autre cours ne pourra se tenir à la même heure pour ce groupe."}
+            </p>
+          </div>
+
           {/* Salle — liste recherchable (FR-FILT-04) */}
           <div>
             <label className="text-lg font-bold text-text">Salle</label>
@@ -620,10 +713,10 @@ export function CreneauFormModal({
               <label className="text-base font-semibold text-text">Début</label>
               <select
                 value={heureDebut}
-                onChange={(e) => setHeureDebut(e.target.value)}
+                onChange={(e) => changerHeureDebut(e.target.value)}
                 className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
               >
-                {OPTIONS_HEURE.map((h) => (
+                {optionsHeureDebut.map((h) => (
                   <option key={h} value={h}>
                     {h}
                   </option>

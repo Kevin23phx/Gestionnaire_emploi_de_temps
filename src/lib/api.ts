@@ -67,3 +67,47 @@ export function apiUrl(path: string): string {
 export function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
   return fetch(apiUrl(path), { ...init, credentials: "include" });
 }
+
+/**
+ * [V8] Lit le corps d'une réponse sans jamais lever d'exception.
+ *
+ * Écrit après un incident reproduit le 2026-09-21 : le bouton « Ajouter »
+ * de l'écran Spécialités restait bloqué sur « Création... », indéfiniment
+ * et sans message. La cause n'était pas dans le bouton — le serveur
+ * renvoyait une erreur 500 en HTML (une table manquait en base), et
+ * `await reponse.json()` levait sur cette page HTML. L'exception partait
+ * AVANT le `setEnCours(false)` de la ligne suivante : le formulaire
+ * restait donc figé dans son état « en cours », et l'utilisateur n'avait
+ * aucun moyen de savoir ce qui s'était passé.
+ *
+ * Le défaut est structurel, pas accidentel : `reponse.json()` ne peut
+ * réussir que si le serveur a répondu du JSON — c'est-à-dire précisément
+ * ce dont on n'est PLUS sûr quand quelque chose a mal tourné. Chaque appel
+ * qui l'enchaîne directement porte donc le même risque de blocage.
+ *
+ * Renvoie toujours un objet : `{}` quand le corps n'est pas du JSON. À
+ * l'appelant de décider quoi en faire — mais il décidera, au lieu de
+ * s'arrêter net.
+ */
+export async function lireReponse<T = Record<string, unknown>>(reponse: Response): Promise<T> {
+  try {
+    return (await reponse.json()) as T;
+  } catch {
+    return {} as T;
+  }
+}
+
+/**
+ * [V8] Message d'erreur à montrer à l'utilisateur pour une réponse en
+ * échec. Le backend renvoie `{ erreur: "..." }` (message rédigé pour un
+ * humain) ; quand il n'a rien pu renvoyer de tel — panne, coupure réseau,
+ * erreur 500 non gérée — un repli générique vaut mieux qu'un silence, et
+ * le code HTTP y est joint pour que l'anomalie soit rapportable.
+ */
+export function messageErreur(reponse: Response, corps: { erreur?: string }, repli: string): string {
+  if (corps.erreur) return corps.erreur;
+  if (reponse.status >= 500) {
+    return `${repli} Le serveur a répondu une erreur ${reponse.status} — réessayez, et signalez-le si cela persiste.`;
+  }
+  return repli;
+}

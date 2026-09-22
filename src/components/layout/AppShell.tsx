@@ -24,11 +24,14 @@ export function AppShell({
   nom,
   prenom,
   children,
+  cheminBase,
 }: {
   role: Role;
   nom: string;
   prenom: string;
   children: ReactNode;
+  // [V8] Simple relais vers la Sidebar — voir RoleGuardShell.
+  cheminBase?: string;
 }) {
   const [ouvert, setOuvert] = useState(false);
 
@@ -71,6 +74,7 @@ export function AppShell({
           roleLabel={ROLE_LABEL[role]}
           nom={nom}
           prenom={prenom}
+          cheminBase={cheminBase}
           onNavigate={() => setOuvert(false)}
         />
       </div>

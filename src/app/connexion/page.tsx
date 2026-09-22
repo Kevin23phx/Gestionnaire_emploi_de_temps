@@ -5,8 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Lock, User } from "lucide-react";
-import { accueilPourRole } from "@/lib/roles";
-import type { Role } from "@/lib/types";
+import { CHEMIN_APRES_CONNEXION } from "@/lib/roles";
 import { apiFetch } from "@/lib/api";
 
 export default function ConnexionPage() {
@@ -42,8 +41,10 @@ export default function ConnexionPage() {
       return;
     }
 
-    const { role }: { role: Role } = await reponse.json();
-    router.push(accueilPourRole(role));
+    // [V8] Le rôle renvoyé par l'API n'est plus lu ici : c'est
+    // /apres-connexion qui aiguille, côté serveur, à partir de la session.
+    // Voir src/lib/roles.ts.
+    router.push(CHEMIN_APRES_CONNEXION);
     router.refresh();
   }
 

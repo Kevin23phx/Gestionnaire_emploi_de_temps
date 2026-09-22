@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { detecterConflits } from "@/lib/conflict-detection";
-import type { Creneau, Enseignant, Groupe, Salle, UniteEnseignement } from "@/lib/types";
+import type { Creneau, Enseignant, Groupe, Salle, Specialite, UniteEnseignement } from "@/lib/types";
 import { ScheduleWeekGrid } from "@/components/schedule/ScheduleWeekGrid";
 import { ConflictPanel } from "@/components/conflicts/ConflictPanel";
 import { CreneauFormModal } from "@/components/planning/CreneauFormModal";
@@ -23,6 +23,7 @@ type EtatModal = { mode: "creation" } | { mode: "edition"; creneau: Creneau } | 
 export default function ProgrammeGroupePage() {
   const { groupeId } = useParams<{ groupeId: string }>();
   const searchParams = useSearchParams();
+  const router = useRouter();
 
   // [2026-09] Retour des gestionnaires : la flèche « Retour aux programmes »
   // doit rendre l'écran qu'on a quitté, filtres appliqués — pas la page nue
@@ -40,6 +41,12 @@ export default function ProgrammeGroupePage() {
   const [salles, setSalles] = useState<Salle[] | null>(null);
   const [groupes, setGroupes] = useState<Groupe[] | null>(null);
   const [unitesEnseignement, setUnitesEnseignement] = useState<UniteEnseignement[] | null>(null);
+  // [V8.1] Tout le référentiel des spécialités de l'établissement, en une
+  // requête ; le filtrage sur le couple (département, niveau) du groupe se
+  // fait ci-dessous. Quelques dizaines d'entrées : un appel ciblé par
+  // groupe n'aurait rien économisé et aurait ajouté une dépendance de plus
+  // au chargement initial.
+  const [specialitesRef, setSpecialitesRef] = useState<Specialite[] | null>(null);
   const [auteur, setAuteur] = useState("Scolarité");
   // Le formulaire de créneau ne s'ouvre QUE sur un clic explicite, ici :
   // « Nouveau créneau » ou une séance de la grille. Qu'on arrive de la carte
@@ -66,6 +73,10 @@ export default function ProgrammeGroupePage() {
     apiFetch("/groupes")
       .then((r) => r.json())
       .then((data) => setGroupes(data.groupes));
+    apiFetch("/specialites")
+      .then((r) => r.json())
+      .then((data) => setSpecialitesRef(data.specialites ?? []))
+      .catch(() => setSpecialitesRef([]));
     apiFetch("/cours")
       .then((r) => r.json())
       .then((data) => setUnitesEnseignement(data.cours));
@@ -83,6 +94,31 @@ export default function ProgrammeGroupePage() {
 
   const groupeActuel = groupes?.find((g) => g.id === groupeId) ?? null;
 
+  // [V8.1] Spécialités ouvertes au couple (département, niveau) de CE
+  // groupe. Vide = tronc commun intégral, l'écran se comporte comme avant
+  // la réforme.
+  const specialitesDuGroupe = useMemo(() => {
+    if (!groupeActuel) return [];
+    return (specialitesRef ?? []).filter(
+      (sp) => sp.departement === groupeActuel.departement && sp.niveau === groupeActuel.niveau
+    );
+  }, [specialitesRef, groupeActuel]);
+
+  // La spécialité que le Gestionnaire a choisie « au préalable » — dans
+  // l'URL et non dans un état local, délibérément : la vue est alors
+  // partageable, retrouvable par l'historique du navigateur, et survit à un
+  // rechargement en pleine saisie. C'est aussi ce que la modale « Nouveau
+  // programme » transmet en ouvrant la feuille.
+  const specialiteActive = searchParams.get("specialite") ?? "";
+
+  function changerSpecialite(valeur: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (valeur) params.set("specialite", valeur);
+    else params.delete("specialite");
+    const requete = params.toString();
+    router.replace(`/scolarite/planning/${groupeId}${requete ? `?${requete}` : ""}`);
+  }
+
   const semainePrecedente = versIso(ajouterJours(depuisIso(lundi), -7));
   const semaineSuivante = versIso(ajouterJours(depuisIso(lundi), 7));
   const samedi = versIso(ajouterJours(depuisIso(lundi), 5));
@@ -94,6 +130,25 @@ export default function ProgrammeGroupePage() {
     () => (creneaux ?? []).filter((c) => c.groupe.id === groupeId && c.date >= lundi && c.date <= samedi),
     [creneaux, groupeId, lundi, samedi]
   );
+
+  // [V8.1] Ce qui est AFFICHÉ dans la grille — distinct de `creneauxDuGroupe`
+  // ci-dessus, qui reste l'ensemble complet du groupe.
+  //
+  // La distinction compte : les conflits se calculent toujours sur
+  // l'ensemble, jamais sur la vue. Filtrer les deux ferait disparaître de
+  // l'écran un double cours dont l'une des deux séances appartient à une
+  // spécialité qu'on n'a pas sélectionnée — le Gestionnaire croirait son
+  // programme sain.
+  //
+  // Le filtre reprend la règle du programme étudiant : la spécialité
+  // choisie PLUS les cours communs (cf. `filtre_specialite` côté serveur).
+  // Le Gestionnaire voit donc exactement ce que verra l'étudiant.
+  const creneauxAffiches = useMemo(() => {
+    if (!specialiteActive) return creneauxDuGroupe;
+    return creneauxDuGroupe.filter(
+      (c) => !c.specialite || c.specialite.toLowerCase() === specialiteActive.toLowerCase()
+    );
+  }, [creneauxDuGroupe, specialiteActive]);
 
   const conflits = useMemo(() => {
     if (!creneaux) return [];
@@ -151,6 +206,10 @@ export default function ProgrammeGroupePage() {
       heureFin: c.heureFin,
       statut: c.statut,
       motif: c.motif,
+      // [V8.1] L'affectation. Sans cette ligne, le serveur enregistrerait
+      // tous les créneaux comme communs à la promotion — le choix fait à
+      // l'écran n'aurait aucun effet, en silence.
+      specialite: c.specialite,
       motifDerogation,
     };
   }
@@ -267,6 +326,12 @@ export default function ProgrammeGroupePage() {
         <div>
           <h1 className="text-xl font-bold text-text">
             Programme — {groupeActuel?.nom ?? "..."}
+            {/* [V8.1] La spécialité consultée titre la feuille : sans elle,
+                la vue « Informatique » et la vue « Chimie » du même groupe
+                porteraient le même titre. */}
+            {specialiteActive ? (
+              <span className="font-normal text-text-muted"> — {specialiteActive}</span>
+            ) : null}
           </h1>
           {groupeActuel ? (
             <p className="text-sm text-text-muted">
@@ -275,15 +340,62 @@ export default function ProgrammeGroupePage() {
             </p>
           ) : null}
         </div>
-        <button
-          onClick={() => setModal({ mode: "creation" })}
-          disabled={!donneesPretes}
-          className="flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
-        >
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          Nouveau créneau
-        </button>
+        <div className="flex items-end gap-2">
+          {/* [V8.1] Le choix « préalable » : il commande à la fois ce que la
+              grille montre et l'affectation pré-remplie des créneaux créés
+              ensuite. Affiché seulement si le niveau ouvre des spécialités —
+              un tronc commun n'a rien à choisir et le champ n'aurait aucun
+              sens à l'écran. */}
+          {specialitesDuGroupe.length > 0 ? (
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-medium text-text-muted">Spécialité</span>
+              <select
+                value={specialiteActive}
+                onChange={(e) => changerSpecialite(e.target.value)}
+                className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text"
+              >
+                <option value="">Tout le groupe</option>
+                {specialitesDuGroupe.map((sp) => (
+                  <option key={sp.id} value={sp.libelle}>
+                    {sp.libelle}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          <button
+            onClick={() => setModal({ mode: "creation" })}
+            disabled={!donneesPretes}
+            className="flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Nouveau créneau
+          </button>
+        </div>
       </div>
+
+      {/* Dit ce que la vue courante montre ET ce qu'elle va produire : le
+          Gestionnaire doit savoir, avant de cliquer, à qui s'adressera le
+          cours qu'il s'apprête à saisir. */}
+      {specialiteActive ? (
+        <p className="mb-4 rounded-lg bg-brand-light px-3 py-2 text-sm text-brand">
+          Vue « {specialiteActive} » : les cours communs à toute la promotion et ceux de cette spécialité.
+          Un nouveau créneau lui sera affecté par défaut.
+        </p>
+      ) : specialitesDuGroupe.length > 0 ? (
+        // [V8.1] Le cas symétrique, ajouté le 2026-09-22. Sans ce message,
+        // une vue « Tout le groupe » sur un niveau qui a des spécialités
+        // était indiscernable d'un programme ordinaire : le Gestionnaire y
+        // voyait les cours de toutes les spécialités mêlés sans comprendre
+        // pourquoi, et un créneau créé là devenait un cours commun à son
+        // insu. Dire ce qu'on regarde vaut mieux que de le laisser déduire.
+        <p className="mb-4 rounded-lg border border-border bg-surface-muted px-3 py-2 text-sm text-text-muted">
+          Vue <strong className="font-medium text-text">toutes spécialités</strong> : ce niveau en propose{" "}
+          {specialitesDuGroupe.length}, et les cours de chacune s&apos;affichent ici ensemble. Choisissez-en une
+          ci-dessus pour ne voir qu&apos;elle — et pour que vos nouveaux créneaux lui soient affectés. Sans
+          choix, un nouveau créneau sera un cours commun à toute la promotion.
+        </p>
+      ) : null}
 
       {confirmation ? (
         <p className="mb-4 rounded-lg bg-status-success-bg px-3 py-2 text-sm text-status-success">
@@ -307,9 +419,10 @@ export default function ProgrammeGroupePage() {
         <div className="min-w-0 text-center">
           <p className="truncate text-sm font-semibold text-text">{libelleSemaine(lundi, samedi)}</p>
           <p className="truncate text-xs text-text-subtle">
-            {creneauxDuGroupe.length === 0
+            {creneauxAffiches.length === 0
               ? "Aucun cours saisi pour cette semaine"
-              : `${creneauxDuGroupe.length} cours programmé${creneauxDuGroupe.length > 1 ? "s" : ""}`}
+              : `${creneauxAffiches.length} cours programmé${creneauxAffiches.length > 1 ? "s" : ""}`}
+            {specialiteActive ? ` — vue « ${specialiteActive} »` : ""}
           </p>
         </div>
         <button
@@ -324,7 +437,7 @@ export default function ProgrammeGroupePage() {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_320px]">
         <div className="order-2 xl:order-1">
           <ScheduleWeekGrid
-            creneaux={creneauxDuGroupe}
+            creneaux={creneauxAffiches}
             variante="salle-enseignant"
             onCreneauClick={(c) => ouvrirEdition(c.id)}
             lundi={lundi}
@@ -352,6 +465,8 @@ export default function ProgrammeGroupePage() {
           }
           enseignants={enseignants ?? []}
           groupes={[groupeActuel]}
+          specialites={specialitesDuGroupe}
+          specialiteParDefaut={specialiteActive}
           salles={salles ?? []}
           unitesEnseignement={unitesEnseignement ?? []}
           onClose={() => setModal(null)}

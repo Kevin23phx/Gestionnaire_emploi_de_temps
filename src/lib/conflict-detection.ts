@@ -17,8 +17,44 @@ function chevauchent(a: Creneau, b: Creneau): boolean {
   return a.heureDebut < b.heureFin && b.heureDebut < a.heureFin;
 }
 
-export function detecterConflits(creneaux: Creneau[]): ConflitDetecte[] {
+/**
+ * [V8.1] Deux créneaux d'un MÊME groupe concernent-ils les mêmes étudiants ?
+ *
+ * Décalque EXACT de `_memes_etudiants` dans
+ * backend_django/conflict_engine/services.py, qui reste la version faisant
+ * foi. Les deux doivent dire la même chose, sans quoi l'écran annoncerait
+ * un conflit que le serveur accepte (ou l'inverse) — et le Gestionnaire ne
+ * saurait plus lequel croire.
+ *
+ * - aucun des deux n'a de spécialité → toute la promotion : conflit ;
+ * - un seul en a une → le cours commun concerne aussi ces étudiants-là :
+ *   conflit ;
+ * - les deux, la même → même sous-population : conflit ;
+ * - les deux, différentes → sous-populations disjointes : PAS de conflit.
+ *   C'est le cas normal d'une L2 de portail où Maths et Chimie tombent à
+ *   la même heure.
+ */
+function memesEtudiants(a: Creneau, b: Creneau): boolean {
+  if (!a.specialite || !b.specialite) return true;
+  return a.specialite.toLowerCase() === b.specialite.toLowerCase();
+}
+
+/** Nomme la sous-population réellement en cause dans un conflit de groupe. */
+function qui(a: Creneau, b: Creneau): string {
+  const specialite = a.specialite || b.specialite;
+  return specialite ? `${a.groupe.nom} — ${specialite}` : a.groupe.nom;
+}
+
+export function detecterConflits(tous: Creneau[]): ConflitDetecte[] {
   const conflits: ConflitDetecte[] = [];
+
+  // Une séance annulée libère sa salle, son enseignant et son groupe : elle
+  // n'entre dans aucune vérification, exactement comme côté serveur
+  // (conflict_engine/services.py). Sans ce filtre, reprogrammer un cours à
+  // la place d'une séance annulée — le geste le plus naturel après une
+  // annulation — affichait un faux conflit « bloquant » et exigeait un
+  // motif de dérogation que le serveur jetait ensuite, faute de conflit réel.
+  const creneaux = tous.filter((c) => c.statut !== "annule");
 
   for (let i = 0; i < creneaux.length; i++) {
     for (let j = i + 1; j < creneaux.length; j++) {
@@ -51,13 +87,15 @@ export function detecterConflits(creneaux: Creneau[]): ConflitDetecte[] {
       }
 
       // FR-CONF-03 : conflit de groupe
-      if (a.groupe.id === b.groupe.id) {
+      // [V8.1] Seulement si les deux créneaux concernent les MÊMES
+      // étudiants — voir `memesEtudiants` plus bas.
+      if (a.groupe.id === b.groupe.id && memesEtudiants(a, b)) {
         conflits.push({
           id: `conflit-groupe-${a.id}-${b.id}`,
           type: "groupe",
           gravite: "bloquant",
-          titre: `Double cours — ${a.groupe.nom}`,
-          description: `${a.groupe.nom} est affecté à deux cours simultanés.`,
+          titre: `Double cours — ${qui(a, b)}`,
+          description: `${qui(a, b)} est affecté à deux cours simultanés.`,
           creneauxConcernes: [a.id, b.id],
         });
       }

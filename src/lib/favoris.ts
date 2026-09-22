@@ -39,6 +39,17 @@ function ecrire(favoris: Favori[]): void {
   notifier();
 }
 
+// [V8.1] LIMITE ASSUMÉE : un favori reste identifié par le seul
+// `groupeId`. Mettre en favori « L2 Médecine — Chimie » alors que « L2
+// Médecine — Informatique » l'est déjà REMPLACE le premier au lieu de
+// s'ajouter.
+//
+// C'est le comportement voulu dans le cas normal — un étudiant suit une
+// spécialité, pas deux, et son favori doit suivre s'il se trompe puis se
+// corrige. Le cas d'un visiteur qui voudrait garder deux vues du même
+// groupe (un délégué, un enseignant) n'est pas couvert ; il faudrait pour
+// cela une clé composite (groupeId + spécialité), et personne ne l'a
+// demandé.
 export function estFavori(groupeId: string): boolean {
   return lireFavoris().some((f) => f.groupeId === groupeId);
 }

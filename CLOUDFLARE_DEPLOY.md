@@ -31,6 +31,30 @@ committé) sont des adresses publiques, pas des identifiants — elles n'ont
 pas leur place dans les secrets GitHub, seulement les vrais identifiants
 (le jeton Cloudflare) en ont besoin.
 
+## `CHEMIN_ESPACE_ADMIN` — à définir AVANT le build `[V8]`
+
+L'espace Admin n'est plus servi sous `/admin` mais sous un chemin non
+annoncé (NFR-SEC-04, voir `src/lib/espace-admin.ts`). Deux points à ne pas
+manquer :
+
+1. **La valeur est figée au moment du `next build`**, pas lue au démarrage :
+   elle est incorporée dans le code du proxy (`src/proxy.ts`), qui s'exécute
+   en périphérie. La changer après coup suppose de reconstruire. Dans le
+   workflow GitHub Actions, elle doit donc être présente à l'étape de build,
+   pas seulement à l'exécution.
+2. **Elle ne va PAS dans `.env.production` (committé)** — contrairement aux
+   adresses d'API ci-dessus, qui sont publiques par nature. Le chemin de
+   l'espace Admin est le seul réglage de ce dépôt qui perde sa valeur en
+   étant publié : il se met dans les **secrets GitHub**, aux côtés du jeton
+   Cloudflare.
+
+Tant que la variable n'est pas définie, le code retombe sur un chemin par
+défaut écrit dans `src/lib/espace-admin.ts` — donc public, donc à remplacer
+avant toute mise en ligne réelle.
+
+L'Admin n'a jamais à taper cette adresse : il se connecte sur `/connexion`
+comme tout le monde, et `/apres-connexion` l'y dépose côté serveur.
+
 ## Pourquoi front (Cloudflare) et back (Render) sont deux domaines séparés
 
 Le navigateur appelle `/api/*` sur le domaine de Cloudflare — jamais Render

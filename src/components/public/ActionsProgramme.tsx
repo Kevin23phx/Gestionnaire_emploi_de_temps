@@ -31,11 +31,19 @@ function estAdresseLocale(url: string): boolean {
   }
 }
 
-function urlCalendrier(groupeId: string): string {
+function urlCalendrier(groupeId: string, specialite: string): string {
   // URL absolue et non relative : elle est destinée à être collée dans une
   // application tierce (Google Agenda, Outlook), qui n'a aucune idée de
   // l'origine de notre site.
-  const base = apiUrl(`/public/calendrier/${groupeId}.ics`);
+  //
+  // [V8.1] La spécialité fait partie de l'adresse d'abonnement : deux
+  // étudiants de la même promotion mais de spécialités différentes n'ont
+  // pas le même emploi du temps, ils ne peuvent pas partager un flux.
+  // INV-13 (adresse stable) reste tenu — c'est toujours la même adresse
+  // tant que l'étudiant ne change pas de spécialité, et changer de
+  // spécialité EST un changement de programme.
+  const suffixe = specialite ? `?specialite=${encodeURIComponent(specialite)}` : "";
+  const base = apiUrl(`/public/calendrier/${groupeId}.ics${suffixe}`);
   if (base.startsWith("http")) return base;
   return typeof window === "undefined" ? base : `${window.location.origin}${base}`;
 }
@@ -54,6 +62,9 @@ function urlWebcal(url: string): string {
 
 export function ActionsProgramme({ programme }: { programme: ProgrammePublic }) {
   const groupe = programme.groupe;
+  // Celle effectivement consultée — issue du groupe (V8) ou du choix fait
+  // dans la cascade (V8.1).
+  const specialite = groupe.specialiteConsultee;
   const favori = useEstFavori(groupe.id);
   const [agendaOuvert, setAgendaOuvert] = useState(false);
   const [copie, setCopie] = useState(false);
@@ -95,6 +106,10 @@ export function ActionsProgramme({ programme }: { programme: ProgrammePublic }) 
       departement: groupe.departement,
       niveau: groupe.niveau,
       anneeAcademique: groupe.anneeAcademique,
+      // [V8.1] Sans elle, le favori rouvrirait le programme complet du
+      // groupe : l'étudiant d'Informatique retrouverait les cours de
+      // Chimie mêlés aux siens.
+      specialite,
       ufrSigle: groupe.ufr.sigleAffiche,
       ajouteLe: new Date().toISOString(),
     });
@@ -102,7 +117,7 @@ export function ActionsProgramme({ programme }: { programme: ProgrammePublic }) 
 
   async function copierLien() {
     try {
-      await navigator.clipboard.writeText(urlCalendrier(groupe.id));
+      await navigator.clipboard.writeText(urlCalendrier(groupe.id, specialite));
       setCopie(true);
       setTimeout(() => setCopie(false), 3000);
     } catch {
@@ -151,7 +166,7 @@ export function ActionsProgramme({ programme }: { programme: ProgrammePublic }) 
     if (!reponse.ok) setMessageAlerte("L'alerte n'a pas pu être activée. Réessayez plus tard.");
   }
 
-  const url = urlCalendrier(groupe.id);
+  const url = urlCalendrier(groupe.id, specialite);
   const urlLocale = estAdresseLocale(url);
 
   return (

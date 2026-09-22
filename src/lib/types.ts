@@ -68,13 +68,37 @@ export interface Departement {
   ufrId: string;
 }
 
+// [V8, 2026-09-21] Spécialité ouverte par un département à un NIVEAU donné
+// (FR-REF-33). Rattachée au COUPLE (département, niveau) et non au seul
+// département : MPCI est un tronc commun en L1 et ne se scinde en Maths /
+// Physique / Chimie / Informatique qu'en L2 — proposer les quatre dès la L1
+// afficherait un choix qui n'existe pas.
+export interface Specialite {
+  id: string;
+  libelle: string;
+  niveau: string;
+  departementId: string;
+  // Libellé du département, renvoyé avec la spécialité : « Informatique »
+  // ne veut rien dire seul dans une liste qui couvre tout l'établissement.
+  departement: string;
+  ufrId: string;
+}
+
 export interface Groupe {
   id: string;
   nom: string; // ex. "L3 INFO - Groupe A"
   // [V5] Nommé "departement" — c'était "filiere" avant, ce qui entretenait
   // une confusion avec le type `Departement` ci-dessus.
   departement: string;
+  // [V8] Le NIVEAU du cycle LMD (L1…M2). L'écran disait « Parcours » jusqu'à
+  // la réforme du 2026-09-21 — un seul mot pour deux notions, d'où la
+  // confusion que cette version corrige : le niveau est ci-dessous, le
+  // parcours est devenu `specialite`.
   niveau: string;
+  // [V8] Spécialité suivie, ou chaîne vide quand le niveau n'en propose
+  // aucune. Chaîne et non identifiant : dénormalisée en base pour que le
+  // groupe garde le libellé qu'avait sa spécialité le jour de sa création.
+  specialite: string;
   // FR-REF-12 : année EN COURS de ce groupe précis (ex. "2025-2026").
   // Une promotion (L1→L2) se fait en créant un nouveau Groupe pour la
   // nouvelle année, pas en modifiant celui-ci sur place.
@@ -147,6 +171,14 @@ export interface Creneau {
   heureFin: string; // "10:00"
   statut: StatutCreneau;
   motif?: string; // obligatoire si modifie/annule (INT-03)
+  // [V8.1] AFFECTATION : spécialité à laquelle ce cours s'adresse. Chaîne
+  // vide = toute la promotion (tronc commun).
+  //
+  // C'est ici, et non sur le Groupe, que la spécialisation se joue depuis
+  // le 2026-09-21 : la scolarité tient UN groupe « L2 Médecine » dont
+  // certains cours sont communs et d'autres propres à une spécialité,
+  // au lieu de quatre groupes dupliquant chacun le tronc commun.
+  specialite: string;
   // [V3] INV-13 : numéro de révision, incrémenté à chaque écriture.
   version: number;
 }
@@ -189,6 +221,10 @@ export interface SeancePublique {
   salle: { nom: string };
   statut: StatutSeance;
   motif: string | null;
+  // [V8.1] Vide = cours commun à toute la promotion. Permet de distinguer,
+  // sur la feuille de l'étudiant, un cours de tronc commun d'un cours de
+  // sa spécialité.
+  specialite: string;
 }
 
 export interface ProgrammePublic {
@@ -197,6 +233,15 @@ export interface ProgrammePublic {
     nom: string;
     departement: string;
     niveau: string;
+    // [V8] Spécialité portée par le GROUPE lui-même. Souvent vide depuis
+    // la V8.1, où la scolarité tient un groupe unique et affecte les
+    // créneaux plutôt que de dupliquer les groupes.
+    specialite: string;
+    // [V8.1] Spécialité effectivement CONSULTÉE — celle choisie dans la
+    // cascade. C'est elle qui titre la feuille (« L2 Médecine —
+    // Informatique ») ; sans elle, deux programmes différents du même
+    // groupe s'afficheraient sous un en-tête identique.
+    specialiteConsultee: string;
     anneeAcademique: string;
     ufr: Ufr;
   };
@@ -216,6 +261,8 @@ export interface GroupePublic {
   nom: string;
   departement: string;
   niveau: string;
+  // [V8] Vide si le niveau ne propose aucune spécialité.
+  specialite: string;
   anneeAcademique: string;
   nbCreneaux: number;
 }
@@ -232,6 +279,11 @@ export interface Favori {
   // favori déjà posé sur l'appareil d'un visiteur ne doit pas devenir
   // illisible parce qu'on a ajouté un champ.
   anneeAcademique?: string;
+  // [V8.1] Spécialité consultée. Optionnelle pour la même raison que le
+  // champ ci-dessus : un favori posé avant la réforme n'en a pas, et il ne
+  // doit pas devenir illisible pour autant — il rouvre alors le programme
+  // complet du groupe, ce qui était déjà son comportement.
+  specialite?: string;
   ufrSigle: string;
   ajouteLe: string; // ISO 8601
 }

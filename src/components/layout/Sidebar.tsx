@@ -13,6 +13,7 @@ import {
   LayoutDashboard,
   LogOut,
   School,
+  Shapes,
   Users,
 } from "lucide-react";
 import type { Role } from "@/lib/types";
@@ -38,6 +39,9 @@ const NAV_ITEMS: Record<Role, NavItem[]> = {
     { href: "/scolarite/groupes", label: "Promotions", icon: Users },
     { href: "/scolarite/cours", label: "Cours", icon: BookOpen },
     { href: "/scolarite/departements", label: "Départements", icon: School },
+    // [V8] Placée juste après « Départements » : une spécialité se rattache
+    // à un département, et c'est dans cet ordre qu'on les déclare.
+    { href: "/scolarite/specialites", label: "Spécialités", icon: Shapes },
     { href: "/scolarite/audit", label: "Journal d'audit", icon: History },
   ],
   // FR-ADMIN-01/02/03 : l'Admin ne gère plus lui-même de référentiel/planning
@@ -55,16 +59,30 @@ export function Sidebar({
   roleLabel,
   nom,
   prenom,
+  cheminBase,
   onNavigate,
 }: {
   role: Role;
   roleLabel: string;
   nom: string;
   prenom: string;
+  // [V8] Préfixe sous lequel l'espace est réellement servi. Les href de
+  // NAV_ITEMS restent écrits avec le chemin interne (`/admin/...`), seul
+  // vocabulaire compréhensible dans ce fichier ; c'est ici qu'ils sont
+  // traduits vers l'URL que voit le navigateur. Le chemin n'arrive donc
+  // dans la page que d'un Admin déjà authentifié, jamais dans le bundle
+  // JavaScript servi à tout le monde (cf. src/lib/espace-admin.ts).
+  cheminBase?: string;
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
   const router = useRouter();
+
+  const items = NAV_ITEMS[role].map((item) =>
+    cheminBase && item.href.startsWith("/admin")
+      ? { ...item, href: `${cheminBase}${item.href.slice("/admin".length)}` }
+      : item
+  );
 
   async function handleDeconnexion() {
     await apiFetch("/auth/logout", { method: "POST" });
@@ -95,11 +113,11 @@ export function Sidebar({
               ([groupeId]) — sinon un simple `pathname === href` ferait
               disparaître le surlignage dès qu'on ouvre un programme. */}
           {(() => {
-            const hrefActif = [...NAV_ITEMS[role]]
+            const hrefActif = [...items]
               .sort((a, b) => b.href.length - a.href.length)
               .find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))?.href;
 
-            return NAV_ITEMS[role].map(({ href, label, icon: Icon }) => {
+            return items.map(({ href, label, icon: Icon }) => {
               const actif = href === hrefActif;
               return (
                 <Link

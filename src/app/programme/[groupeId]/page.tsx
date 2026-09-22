@@ -3,12 +3,50 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { useParams, useSearchParams } from "next/navigation";
+import { ArrowLeft, Loader2, WifiOff } from "lucide-react";
 import { ActionsProgramme } from "@/components/public/ActionsProgramme";
 import { ProgrammeSemaine } from "@/components/public/ProgrammeSemaine";
 import { apiFetch } from "@/lib/api";
 import type { ProgrammePublic } from "@/lib/types";
+
+// FR-OFF-01 — « Le dernier programme consulté reste lisible même sans
+// réseau », promesse affichée sur la page d'accueil. Le Service Worker ne
+// met délibérément aucune réponse d'API en cache (cf. public/sw.js, correctif
+// du gel de septembre) : c'est donc cette page qui garde, sur l'appareil,
+// chaque programme affiché avec succès, et le relit si le réseau manque.
+// [V8.1] La spécialité entre dans la clé : un groupe unique sert désormais
+// plusieurs programmes (cours communs + cours d'une spécialité). Sans elle,
+// consulter la vue « Chimie » écraserait la copie hors ligne de la vue
+// « Informatique », et l'étudiant d'Informatique privé de réseau se
+// retrouverait avec l'emploi du temps de la Chimie — signalé comme étant
+// le sien.
+const CLE_HORS_LIGNE = (groupeId: string, specialite: string) =>
+  `campus-manager:programme:${groupeId}${specialite ? `:${specialite}` : ""}`;
+
+interface CopieHorsLigne {
+  programme: ProgrammePublic;
+  enregistreLe: string;
+}
+
+// try/catch partout : `localStorage` lève en navigation privée ou quand le
+// stockage est plein — la copie hors ligne est un confort, jamais une
+// raison de faire échouer l'affichage.
+function memoriser(groupeId: string, specialite: string, programme: ProgrammePublic) {
+  try {
+    const copie: CopieHorsLigne = { programme, enregistreLe: new Date().toISOString() };
+    localStorage.setItem(CLE_HORS_LIGNE(groupeId, specialite), JSON.stringify(copie));
+  } catch {}
+}
+
+function relire(groupeId: string, specialite: string): CopieHorsLigne | null {
+  try {
+    const brut = localStorage.getItem(CLE_HORS_LIGNE(groupeId, specialite));
+    return brut ? (JSON.parse(brut) as CopieHorsLigne) : null;
+  } catch {
+    return null;
+  }
+}
 
 // [V3] FR-PUB-01/03 — le programme public d'un groupe.
 //
@@ -21,10 +59,18 @@ export default function ProgrammePage() {
   // place dans ce projet pour une page dynamique côté client
   // (cf. scolarite/planning/[groupeId]).
   const { groupeId } = useParams<{ groupeId: string }>();
+  // [V8.1] La spécialité choisie dans la cascade publique. Vide = le
+  // programme complet du groupe, toutes spécialités confondues — ce qui
+  // reste la lecture juste d'un niveau de tronc commun, et celle d'un
+  // favori enregistré avant la réforme.
+  const specialite = useSearchParams().get("specialite") ?? "";
   const [programme, setProgramme] = useState<ProgrammePublic | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [semaine, setSemaine] = useState<string | null>(null);
   const [chargement, setChargement] = useState(true);
+  // Date d'enregistrement de la copie affichée quand le réseau manque ; null
+  // quand ce qui est à l'écran vient bien du serveur.
+  const [copieDu, setCopieDu] = useState<string | null>(null);
 
   // Le chargement vit dans l'effet, avec un drapeau d'annulation. Ce n'est
   // pas de la prudence gratuite : en cliquant deux fois sur « semaine
@@ -33,7 +79,14 @@ export default function ProgrammePage() {
   // seule la dernière demande écrit dans l'état.
   useEffect(() => {
     let annule = false;
-    const suffixe = semaine ? `?semaine=${encodeURIComponent(semaine)}` : "";
+    // [V8.1] La spécialité accompagne la demande : le serveur renvoie alors
+    // les cours communs PLUS ceux de cette spécialité, jamais ceux des
+    // autres (cf. `filtre_specialite` côté serveur).
+    const params = new URLSearchParams();
+    if (semaine) params.set("semaine", semaine);
+    if (specialite) params.set("specialite", specialite);
+    const requete = params.toString();
+    const suffixe = requete ? `?${requete}` : "";
 
     apiFetch(`/public/programme/${groupeId}${suffixe}`)
       .then(async (reponse) => {
@@ -47,10 +100,24 @@ export default function ProgrammePage() {
         const data = await reponse.json();
         if (annule) return;
         setProgramme(data);
+        setCopieDu(null);
         setErreur(null);
+        memoriser(groupeId, specialite, data);
       })
       .catch(() => {
-        if (!annule) setErreur("Impossible de charger ce programme. Vérifiez votre connexion.");
+        if (annule) return;
+        // Réseau absent : on ressert la dernière copie — mais seulement si
+        // c'est bien la semaine demandée. Montrer une autre semaine que
+        // celle réclamée, même signalée, ferait lire au visiteur le mauvais
+        // programme.
+        const copie = relire(groupeId, specialite);
+        if (copie && (semaine === null || copie.programme.semaine.lundi === semaine)) {
+          setProgramme(copie.programme);
+          setCopieDu(copie.enregistreLe);
+          setErreur(null);
+          return;
+        }
+        setErreur("Impossible de charger ce programme. Vérifiez votre connexion.");
       })
       .finally(() => {
         if (!annule) setChargement(false);
@@ -59,7 +126,7 @@ export default function ProgrammePage() {
     return () => {
       annule = true;
     };
-  }, [groupeId, semaine]);
+  }, [groupeId, semaine, specialite]);
 
   // Le passage en « chargement » accompagne le clic sur une flèche de
   // semaine, pas l'effet qui suit : c'est le geste de l'utilisateur qui
@@ -111,11 +178,37 @@ export default function ProgrammePage() {
           <>
             <div className="mb-5">
               <h1 className="text-xl font-bold text-text">{programme.groupe.nom}</h1>
+              {/* [V8] La spécialité s'insère entre le niveau et l'année, et
+                  disparaît quand il n'y en a pas — un « · » orphelin en L1
+                  laisserait croire à une information manquante. */}
               <p className="text-sm text-text-muted">
-                {programme.groupe.ufr.sigleAffiche} · {programme.groupe.departement} ·{" "}
-                {programme.groupe.niveau} · {programme.groupe.anneeAcademique}
+                {[
+                  programme.groupe.ufr.sigleAffiche,
+                  programme.groupe.departement,
+                  programme.groupe.niveau,
+                  // [V8.1] La spécialité CONSULTÉE : celle choisie dans la
+                  // cascade, qui peut venir du créneau plutôt que du groupe.
+                  programme.groupe.specialiteConsultee,
+                  programme.groupe.anneeAcademique,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
               </p>
             </div>
+
+            {copieDu ? (
+              // Toujours signalé : une copie peut avoir été dépassée par une
+              // annulation publiée depuis — l'étudiant doit le savoir avant
+              // de se déplacer.
+              <p className="mb-5 flex items-start gap-2 rounded-lg bg-status-warning-bg px-3 py-2 text-sm text-text">
+                <WifiOff className="mt-0.5 h-4 w-4 shrink-0 text-status-warning" aria-hidden="true" />
+                <span>
+                  Hors connexion — programme enregistré sur cet appareil le{" "}
+                  {new Date(copieDu).toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" })}. Il a
+                  pu changer depuis : vérifiez-le dès que le réseau revient.
+                </span>
+              </p>
+            ) : null}
 
             <div className="mb-5">
               <ActionsProgramme programme={programme} />

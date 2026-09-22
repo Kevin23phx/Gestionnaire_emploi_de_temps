@@ -113,8 +113,19 @@ export default function UfrDetailAdminPage() {
       {onglet === "groupes" ? (
         <TableGeneric
           donnees={groupes}
-          colonnes={["Nom", "Département", "Parcours", "Année", "Effectif"]}
-          lignes={(groupes ?? []).map((g) => [g.nom, g.departement, g.niveau, g.anneeAcademique, `${g.effectif}`])}
+          colonnes={["Nom", "Département", "Niveau", "Spécialité", "Année", "Effectif"]}
+          // [V8] Un tiret quand le groupe ne porte aucune spécialité : une
+          // cellule vide dans un tableau de supervision se lit comme une
+          // donnée manquante, alors que c'est un état normal (tronc commun,
+          // ou groupe unique dont ce sont les créneaux qui sont affectés).
+          lignes={(groupes ?? []).map((g) => [
+            g.nom,
+            g.departement,
+            g.niveau,
+            g.specialite || "—",
+            g.anneeAcademique,
+            `${g.effectif}`,
+          ])}
         />
       ) : null}
 
@@ -162,9 +173,14 @@ export default function UfrDetailAdminPage() {
       {onglet === "planning" ? (
         <TableGeneric
           donnees={creneaux}
-          colonnes={["Jour", "Horaire", "Cours", "Enseignant", "Groupe", "Salle"]}
-          lignes={(creneaux ?? []).map((c) => [
-            c.jour,
+          colonnes={["Date", "Horaire", "Cours", "Enseignant", "Groupe", "Salle"]}
+          // [V4] Une séance est datée : le jour de semaine seul mélangeait
+          // toutes les semaines publiées (« lundi » valait pour chacune).
+          // Triées dans l'ordre chronologique pour la même raison.
+          lignes={[...(creneaux ?? [])]
+            .sort((a, b) => a.date.localeCompare(b.date) || a.heureDebut.localeCompare(b.heureDebut))
+            .map((c) => [
+            `${c.jour} ${c.date.split("-").reverse().join("/")}`,
             `${c.heureDebut}-${c.heureFin}`,
             c.ue.intitule,
             `${c.enseignant.prenom} ${c.enseignant.nom}`,

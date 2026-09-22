@@ -26,8 +26,24 @@ export function ListeFavoris() {
             key={f.groupeId}
             className="group flex items-center gap-2 rounded-xl border border-border bg-surface pr-2 transition-colors hover:border-brand"
           >
-            <Link href={`/programme/${f.groupeId}`} className="min-w-0 flex-1 p-4">
-              <span className="block truncate font-semibold text-text">{f.nom}</span>
+            {/* [V8.1] La spécialité repart dans le lien : sans elle, le
+                favori rouvrirait le programme complet du groupe, cours de
+                toutes les spécialités mêlés — exactement ce que le visiteur
+                avait écarté en faisant son choix dans la cascade. */}
+            <Link
+              href={
+                f.specialite
+                  ? `/programme/${f.groupeId}?specialite=${encodeURIComponent(f.specialite)}`
+                  : `/programme/${f.groupeId}`
+              }
+              className="min-w-0 flex-1 p-4"
+            >
+              <span className="block truncate font-semibold text-text">
+                {f.nom}
+                {f.specialite ? (
+                  <span className="font-normal text-text-muted"> — {f.specialite}</span>
+                ) : null}
+              </span>
               <span className="block truncate text-xs text-text-muted">
                 {f.ufrSigle} · {f.departement} · {f.niveau}
                 {f.anneeAcademique ? ` · ${f.anneeAcademique}` : ""}

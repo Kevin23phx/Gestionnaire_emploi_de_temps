@@ -26,6 +26,20 @@ import type { GroupePublic, Ufr } from "@/lib/types";
 //
 // Ce qui subsiste de la cascade, c'est l'ordre de saisie : un département
 // appartient à un établissement, on ne peut donc le proposer avant lui.
+//
+// [V8, 2026-09-21] Réforme « Niveau / Spécialité ». Le quatrième filtre
+// s'intitulait « Parcours » et contenait en réalité des NIVEAUX (L1…M2) :
+// un seul mot pour deux notions, et aucune place pour la troisième. Il
+// s'appelle désormais « Niveau », et un cinquième étage — « Spécialité » —
+// porte le vrai parcours (Mathématiques, Physique, Chimie, Informatique…).
+//
+// Ce cinquième étage est le seul de la cascade qui puisse être VIDE sans
+// que ce soit une anomalie, et c'est tout l'objet de la réforme : en L1,
+// une licence de portail comme MPCI est un tronc commun — il n'y a rien à
+// choisir ; c'est en L2 que la cohorte se répartit. Le champ est donc
+// DÉSACTIVÉ et non masqué dans ce cas, avec la raison écrite dessous : un
+// champ qui apparaît et disparaît au gré des sélections donne l'impression
+// d'un écran instable, là où un champ grisé explique la règle.
 
 export function RechercheProgramme() {
   const router = useRouter();
@@ -33,18 +47,28 @@ export function RechercheProgramme() {
   const [ufrs, setUfrs] = useState<Ufr[] | null>(null);
   const [departements, setDepartements] = useState<string[] | null>(null);
   const [niveaux, setNiveaux] = useState<string[] | null>(null);
+  // null = pas encore demandé/en vol ; [] = ce niveau ne propose aucune
+  // spécialité. Les deux états sont distincts et se lisent différemment à
+  // l'écran (« Chargement… » contre « Aucune spécialité à ce niveau »).
+  const [specialites, setSpecialites] = useState<string[] | null>(null);
 
   const [annee, setAnnee] = useState("");
   const [ufrId, setUfrId] = useState("");
   const [departement, setDepartement] = useState("");
   const [niveau, setNiveau] = useState("");
+  const [specialite, setSpecialite] = useState("");
 
   const [resultatsPrets, setResultatsPrets] = useState(false);
   const [chargementResultats, setChargementResultats] = useState(false);
   const [groupes, setGroupes] = useState<GroupePublic[] | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
 
-  const toutSelectionne = Boolean(annee && ufrId && departement && niveau);
+  // Une spécialité n'est exigée QUE si le niveau choisi en propose. Sans
+  // cette nuance, aucun programme de L1 ne serait plus consultable.
+  const specialitesDisponibles = specialites !== null && specialites.length > 0;
+  const toutSelectionne = Boolean(
+    annee && ufrId && departement && niveau && (!specialitesDisponibles || specialite)
+  );
   // Le sigle plutôt que l'identifiant dans le message « pas encore publié » :
   // c'est sous ce nom que le visiteur connaît son établissement.
   const sigleEtablissement = (ufrs ?? []).find((u) => u.id === ufrId)?.sigleAffiche ?? "votre établissement";
@@ -83,6 +107,28 @@ export function RechercheProgramme() {
       .then((d) => setNiveaux(d.niveaux));
   }, [ufrId, departement]);
 
+  // [V8] Les spécialités dépendent du COUPLE (département, niveau) : c'est
+  // ce qui permet à MPCI de n'en proposer qu'à partir de la L2.
+  useEffect(() => {
+    if (!ufrId || !departement || !niveau) return;
+    let annule = false;
+    const params = new URLSearchParams({ ufrId, departement, niveau });
+    apiFetch(`/public/specialites?${params.toString()}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!annule) setSpecialites(d.specialites);
+      })
+      // Un échec réseau ici ne doit pas bloquer toute la recherche : on
+      // retombe sur « aucune spécialité », ce qui redonne exactement le
+      // comportement d'avant la réforme plutôt qu'un écran mort.
+      .catch(() => {
+        if (!annule) setSpecialites([]);
+      });
+    return () => {
+      annule = true;
+    };
+  }, [ufrId, departement, niveau]);
+
   // Les réinitialisations des étages avals se font ici, dans le geste qui
   // les invalide (le clic), jamais dans le corps d'un effet : sans ça,
   // choisir un nouvel Établissement afficherait un instant les Départements
@@ -101,6 +147,8 @@ export function RechercheProgramme() {
     setDepartement("");
     setNiveaux(null);
     setNiveau("");
+    setSpecialites(null);
+    setSpecialite("");
     setResultatsPrets(false);
     setGroupes(null);
   }
@@ -109,14 +157,41 @@ export function RechercheProgramme() {
     setDepartement(valeur);
     setNiveaux(null);
     setNiveau("");
+    setSpecialites(null);
+    setSpecialite("");
     setResultatsPrets(false);
     setGroupes(null);
   }
 
   function changerNiveau(valeur: string) {
     setNiveau(valeur);
+    // [V8] Le niveau commande la spécialité : en changer invalide le choix
+    // précédent, qui pourrait n'exister qu'à l'ancien niveau (« Chimie » en
+    // L2 mais pas en L1).
+    setSpecialites(null);
+    setSpecialite("");
     setResultatsPrets(false);
     setGroupes(null);
+  }
+
+  function changerSpecialite(valeur: string) {
+    setSpecialite(valeur);
+    setResultatsPrets(false);
+    setGroupes(null);
+  }
+
+  // [V8.1] La spécialité voyage jusqu'à la feuille de programme. C'est ce
+  // qui permet de retrouver « le même chemin » jusqu'au bout : depuis que
+  // l'affectation se fait au créneau, un groupe unique sert plusieurs
+  // spécialités — sans ce paramètre, l'étudiant d'Informatique et celui de
+  // Chimie arriveraient sur la même page, avec tous les cours mélangés.
+  //
+  // Dans l'URL et non dans un état : la page reste partageable entre
+  // camarades de la même spécialité, et un favori la conserve.
+  function lienProgramme(groupeId: string): string {
+    return specialite
+      ? `/programme/${groupeId}?specialite=${encodeURIComponent(specialite)}`
+      : `/programme/${groupeId}`;
   }
 
   function actualiser() {
@@ -124,6 +199,10 @@ export function RechercheProgramme() {
     setResultatsPrets(true);
     setChargementResultats(true);
     const params = new URLSearchParams({ ufrId, departement, niveau, anneeAcademique: annee });
+    // Ajoutée seulement si elle a été choisie : envoyer une chaîne vide
+    // ferait filtrer sur « groupes sans spécialité » côté serveur, ce qui
+    // masquerait au contraire tous les groupes spécialisés.
+    if (specialite) params.set("specialite", specialite);
     apiFetch(`/public/groupes?${params.toString()}`)
       .then((r) => r.json())
       .then((d: { groupes: GroupePublic[] }) => {
@@ -131,7 +210,7 @@ export function RechercheProgramme() {
         // Un seul groupe possible : inutile de faire cliquer une fois de
         // plus sur une liste à un élément.
         if (d.groupes.length === 1) {
-          router.push(`/programme/${d.groupes[0].id}`);
+          router.push(lienProgramme(d.groupes[0].id));
           return;
         }
         setGroupes(d.groupes);
@@ -149,7 +228,14 @@ export function RechercheProgramme() {
   return (
     <div className="w-full max-w-3xl">
       {/* Zone de sélection : les 4 filtres, horizontaux, toujours visibles. */}
-      <div className="mb-4 flex flex-wrap items-end gap-2 rounded-xl border border-border bg-surface p-4">
+      {/* [V8.1] Une GRILLE et non un `flex-wrap`. Avec cinq champs de
+          largeur libre, le dernier se retrouvait seul sur la deuxième ligne
+          et s'étirait sur toute la largeur — « Spécialité » faisait trois
+          fois la taille de « Niveau » pour un contenu plus court. La grille
+          donne des colonnes de largeur égale à chaque palier, comme les
+          barres de filtres des écrans gestionnaire. */}
+      <div className="mb-4 rounded-xl border border-border bg-surface p-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <Champ label="Année académique">
           <select
             value={annee}
@@ -200,7 +286,10 @@ export function RechercheProgramme() {
           </select>
         </Champ>
 
-        <Champ label="Parcours">
+        {/* [V8] « Niveau » et non plus « Parcours » : ce champ a toujours
+            contenu des niveaux du LMD (L1…M2), c'est son libellé qui était
+            faux. Le parcours, lui, est le champ suivant. */}
+        <Champ label="Niveau">
           <select
             value={niveau}
             onChange={(e) => changerNiveau(e.target.value)}
@@ -216,14 +305,57 @@ export function RechercheProgramme() {
           </select>
         </Champ>
 
-        <button
-          onClick={actualiser}
-          disabled={!toutSelectionne}
-          className="flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          <RefreshCw className="h-4 w-4" aria-hidden="true" />
-          Actualiser
-        </button>
+        {/* [V8] Spécialité — le cinquième étage, activé seulement si le
+            niveau choisi en propose. Un niveau de tronc commun (L1 MPCI)
+            laisse ce champ grisé avec sa raison écrite en dessous, plutôt
+            que de le faire disparaître. */}
+        <Champ label="Spécialité">
+          <select
+            value={specialite}
+            onChange={(e) => changerSpecialite(e.target.value)}
+            disabled={!specialitesDisponibles}
+            className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text disabled:opacity-60"
+          >
+            <option value="">
+              {!niveau
+                ? "Choisissez un niveau"
+                : specialites === null
+                  ? "Chargement..."
+                  : specialites.length === 0
+                    ? "Aucune à ce niveau"
+                    : "Choisir..."}
+            </option>
+            {(specialites ?? []).map((sp) => (
+              <option key={sp} value={sp}>
+                {sp}
+              </option>
+            ))}
+          </select>
+          {niveau && specialites !== null && specialites.length === 0 ? (
+            // Dit pourquoi le champ est inerte. Sans cette phrase, le
+            // visiteur de L1 croit que la page n'a pas fini de charger et
+            // attend un choix qui ne viendra jamais.
+            <span className="text-xs text-text-subtle">
+              {niveau} est un tronc commun : pas de choix à faire.
+            </span>
+          ) : null}
+        </Champ>
+
+        </div>
+
+        {/* Hors de la grille : un bouton logé dans une colonne de filtre
+            s'alignerait sur la hauteur des libellés et paraîtrait être un
+            sixième champ. */}
+        <div className="mt-3 flex justify-end">
+          <button
+            onClick={actualiser}
+            disabled={!toutSelectionne}
+            className="flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <RefreshCw className="h-4 w-4" aria-hidden="true" />
+            Actualiser
+          </button>
+        </div>
       </div>
 
       {/* Zone d'affichage : rien tant que les 4 filtres ne sont pas choisis
@@ -231,7 +363,10 @@ export function RechercheProgramme() {
       {!resultatsPrets ? (
         <div className="rounded-xl border border-dashed border-border bg-surface p-8 text-center text-sm text-text-muted">
           <Search className="mx-auto mb-2 h-5 w-5 text-text-subtle" aria-hidden="true" />
-          Choisissez les 4 filtres ci-dessus puis cliquez sur Actualiser pour afficher votre programme.
+          {/* Compté et non écrit en dur : « les 5 filtres » serait faux pour
+              un niveau de tronc commun, qui n'en a que 4 à renseigner. */}
+          Choisissez les {specialitesDisponibles ? 5 : 4} filtres ci-dessus puis cliquez sur Actualiser
+          pour afficher votre programme.
         </div>
       ) : chargementResultats ? (
         <div className="flex items-center justify-center gap-2 rounded-xl border border-border bg-surface py-10 text-sm text-text-muted">
@@ -245,7 +380,9 @@ export function RechercheProgramme() {
         <div className="rounded-xl border border-dashed border-border bg-surface p-6 text-center text-sm text-text-muted">
           <CalendarClock className="mx-auto mb-2 h-5 w-5 text-text-subtle" aria-hidden="true" />
           <p className="font-medium text-text">
-            Le programme de {niveau} — {departement} n&apos;est pas encore disponible pour {annee}.
+            Le programme de {niveau}
+            {specialite ? ` ${specialite}` : ""} — {departement} n&apos;est pas encore disponible pour{" "}
+            {annee}.
           </p>
           <p className="mt-1">
             Il apparaîtra ici dès que la scolarité de {sigleEtablissement} l&apos;aura publié. Vous pouvez
@@ -257,7 +394,7 @@ export function RechercheProgramme() {
           {groupes.map((g) => (
             <button
               key={g.id}
-              onClick={() => router.push(`/programme/${g.id}`)}
+              onClick={() => router.push(lienProgramme(g.id))}
               className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface p-4 text-left transition-colors hover:border-brand hover:bg-brand-light"
             >
               <span className="min-w-0">
@@ -280,7 +417,9 @@ export function RechercheProgramme() {
 
 function Champ({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="flex min-w-[160px] flex-1 flex-col gap-1">
+    // Plus de `flex-1 min-w-[160px]` : la largeur vient de la grille
+    // parente, et ces deux règles l'auraient au contraire forcée à déborder.
+    <label className="flex min-w-0 flex-col gap-1">
       <span className="text-xs font-medium text-text-muted">{label}</span>
       {children}
     </label>
