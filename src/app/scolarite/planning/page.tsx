@@ -6,9 +6,9 @@ import { CalendarDays, Plus } from "lucide-react";
 import type { Creneau, Departement, Groupe, Specialite } from "@/lib/types";
 import { NouveauProgrammeModal } from "@/components/planning/NouveauProgrammeModal";
 import { BarreFiltres } from "@/components/filtres/BarreFiltres";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, chargerJson } from "@/lib/api";
 import { correspond, useFiltresManuel, valeursDistinctes } from "@/lib/filtres";
-import { NIVEAUX, anneesAcademiques } from "@/lib/referentiel-options";
+import { NIVEAUX, anneesAcademiques, specialitesDuCouple } from "@/lib/referentiel-options";
 
 // Liste des programmes — un par groupe (décision de cadrage 2026-08-17,
 // FR-EDT-01 : un créneau appartient toujours à un groupe précis, on ne
@@ -30,13 +30,10 @@ export default function ListeProgrammesPage() {
   const { brouillon, definirBrouillon, valeur, actualiser, reinitialiser, actifs, aActualise } = useFiltresManuel();
 
   useEffect(() => {
-    apiFetch("/departements")
-      .then((r) => r.json())
-      .then((data) => setDepartementsRef(data.departements));
-    apiFetch("/specialites")
-      .then((r) => r.json())
-      .then((data) => setSpecialitesRef(data.specialites ?? []))
-      .catch(() => setSpecialitesRef([]));
+    chargerJson<{ departements?: Departement[] }>("/departements")
+      .then((data) => setDepartementsRef(data?.departements ?? []));
+    chargerJson<{ specialites?: Specialite[] }>("/specialites")
+      .then((data) => setSpecialitesRef(data?.specialites ?? []));
   }, []);
 
   useEffect(() => {
@@ -184,9 +181,7 @@ export default function ListeProgrammesPage() {
             // [V8.1] Les spécialités du couple (département, niveau) de ce
             // groupe. Une carte de tronc commun n'en a aucune et garde donc
             // l'apparence d'avant la réforme.
-            const specialites = (specialitesRef ?? []).filter(
-              (sp) => sp.departement === groupe.departement && sp.niveau === groupe.niveau
-            );
+            const specialites = specialitesDuCouple(specialitesRef ?? [], groupe.departement, groupe.niveau);
             return (
               // [V8.1] Une carte, PLUSIEURS entrées — le programme d'un
               // groupe n'est plus une porte unique.

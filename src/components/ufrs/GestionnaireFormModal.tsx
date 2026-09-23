@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Check, Copy, X } from "lucide-react";
 import type { UfrAvecGestionnaire } from "@/lib/types";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, lireReponse, messageErreur } from "@/lib/api";
 
 // FR-ADMIN-02 : l'identifiant (scolarite.<sigle>) est dérivé côté serveur,
 // jamais saisi ici — ce formulaire ne prend que l'identité de la personne.
@@ -36,21 +36,30 @@ export function GestionnaireFormModal({
     setErreur(null);
     setEnCours(true);
 
-    const reponse = await apiFetch(`/ufrs/${ufr.id}/gestionnaire`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nom, prenom }),
-    });
-    const data = await reponse.json();
-    setEnCours(false);
+    // [V8.6] `try/finally` + `lireReponse` : un serveur injoignable, ou
+    // qui répond autre chose que du JSON (500 rendu en HTML), faisait lever
+    // avant `setEnCours(false)` — le bouton restait alors bloqué sur son
+    // libellé d'attente, indéfiniment et sans message. Même défaut que
+    // celui constaté sur l'écran Spécialités le 2026-09-21.
+    try {
+      const reponse = await apiFetch(`/ufrs/${ufr.id}/gestionnaire`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nom, prenom }),
+      });
+      const data = await lireReponse<{ erreur?: string; identifiant?: string }>(reponse);
 
-    if (!reponse.ok) {
-      setErreur(data.erreur ?? "Impossible de créer le compte Gestionnaire.");
-      return;
+      if (!reponse.ok) {
+        setErreur(messageErreur(reponse, data, "Impossible de créer le compte Gestionnaire."));
+        return;
+      }
+      setIdentifiantCree(data.identifiant!);
+      onCreated(data.identifiant!);
+    } catch {
+      setErreur("Le serveur est injoignable. Vérifiez votre connexion, puis réessayez.");
+    } finally {
+      setEnCours(false);
     }
-
-    setIdentifiantCree(data.identifiant);
-    onCreated(data.identifiant);
   }
 
   // navigator.clipboard n'existe que dans un contexte "sécurisé" (HTTPS, ou

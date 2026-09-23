@@ -111,3 +111,62 @@ export function messageErreur(reponse: Response, corps: { erreur?: string }, rep
   }
   return repli;
 }
+
+/**
+ * [V8.6, 2026-09-23] Charge du JSON pour un écran authentifié, sans jamais
+ * laisser planter ni figer l'écran.
+ *
+ * ## L'incident qui l'a motivée
+ *
+ * `AuditApercu` faisait `apiFetch("/audit").then(r => r.json()).then(d =>
+ * setEntries(d.entries.slice(0, 5)))`. La session du Gestionnaire a expiré
+ * (8 h par défaut) ; l'API a répondu **401 `{"erreur": "Non connecté."}`**
+ * — du JSON parfaitement valide, mais sans `entries`. D'où le
+ * `TypeError: Cannot read properties of undefined (reading 'slice')`, une
+ * page blanche, et aucune indication de ce qu'il fallait faire.
+ *
+ * Le même appel se répète une vingtaine de fois dans les écrans
+ * gestionnaire. La plupart n'accèdent pas à une méthode et ne plantent
+ * donc pas : ils posent `undefined` dans l'état, ce qui laisse l'écran sur
+ * « Chargement... » indéfiniment. C'est pire, en un sens — un plantage se
+ * remarque, un chargement éternel se subit.
+ *
+ * ## Ce que fait cette fonction
+ *
+ * 1. **401 → retour à la connexion.** C'est la seule réponse utile à une
+ *    session expirée : ni un plantage, ni un spinner perpétuel, mais
+ *    « reconnectez-vous ». Une navigation dure (`location.href`) et non
+ *    `router.push` : elle force un rendu serveur neuf, donc une
+ *    revérification de session par `RoleGuardShell` — le routeur client
+ *    pourrait resservir une page depuis son cache.
+ * 2. **Toute autre réponse en échec, ou un corps illisible → `null`.** À
+ *    l'appelant de choisir son repli ; il ne peut plus lire une propriété
+ *    de `undefined`.
+ *
+ * Volontairement distincte de `lireReponse` : celle-ci sert aux ÉCRITURES,
+ * où l'échec doit s'afficher dans le formulaire, pas renvoyer l'utilisateur
+ * ailleurs au milieu d'une saisie.
+ */
+export async function chargerJson<T>(path: string, init: RequestInit = {}): Promise<T | null> {
+  let reponse: Response;
+  try {
+    reponse = await apiFetch(path, init);
+  } catch {
+    return null;
+  }
+
+  if (reponse.status === 401 && typeof window !== "undefined") {
+    // `replace` plutôt que `href` : la page dont la session vient
+    // d'expirer n'a pas à rester dans l'historique, le bouton « retour »
+    // y ramènerait pour rien.
+    window.location.replace("/connexion");
+    return null;
+  }
+  if (!reponse.ok) return null;
+
+  try {
+    return (await reponse.json()) as T;
+  } catch {
+    return null;
+  }
+}

@@ -15,7 +15,7 @@ import { decouperSelonPauses } from "@/lib/pauses";
 import { normaliser } from "@/lib/recherche";
 import { correspond } from "@/lib/filtres";
 import { ConflitGraviteBadge } from "@/components/ui/StatusBadge";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, lireReponse, messageErreur } from "@/lib/api";
 import { ajouterJours, depuisIso, versIso } from "@/lib/semaines";
 
 const JOURS: { value: Creneau["jour"]; label: string }[] = [
@@ -41,6 +41,36 @@ const OPTIONS_HEURE = Array.from(
 // la séance commence à 10:15, et rien ne permettait de la resélectionner.
 function avecHeure(options: string[], heure: string | undefined): string[] {
   return heure && !options.includes(heure) ? [...options, heure].sort() : options;
+}
+
+/**
+ * [V8.6] Même précaution que `avecHeure`, pour les spécialités.
+ *
+ * Le référentiel des spécialités est modifiable : FR-REF-35 permet d'en
+ * refermer une, et INV-21 garantit que les créneaux déjà saisis conservent
+ * le libellé qu'ils portaient. Les deux sont voulus — mais combinés, ils
+ * produisaient une perte de données silencieuse :
+ *
+ * en rouvrant un créneau affecté à une spécialité depuis refermée, la liste
+ * déroulante ne contenait plus sa valeur. Le navigateur affichait donc la
+ * première option — « Tout le groupe » — et le moindre enregistrement
+ * écrivait `specialite: ""`. Le cours passait de « réservé à Chimie » à
+ * « commun à toute la promotion » sans que rien ne le signale, et il
+ * apparaissait alors dans l'emploi du temps de tous les étudiants.
+ *
+ * La spécialité du créneau est donc toujours présente dans la liste, même
+ * absente du référentiel. Elle est marquée, pour que le Gestionnaire sache
+ * qu'elle n'y figure plus et décide lui-même.
+ */
+function avecSpecialiteDuCreneau(
+  options: Specialite[],
+  libelle: string
+): { cle: string; libelle: string; retiree: boolean }[] {
+  const liste = options.map((sp) => ({ cle: sp.id, libelle: sp.libelle, retiree: false }));
+  const connue = liste.some((o) => o.libelle.toLowerCase() === libelle.toLowerCase());
+  return libelle && !connue
+    ? [...liste, { cle: `hors-referentiel-${libelle}`, libelle, retiree: true }]
+    : liste;
 }
 
 const NOUVEL_ENSEIGNANT = "__nouveau__";
@@ -352,9 +382,9 @@ export function CreneauFormModal({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ intitule: ueIntituleLibre }),
     });
-    const data = await reponse.json();
-    if (!reponse.ok) {
-      setErreur(data.erreur ?? "Impossible de créer le cours.");
+    const data = await lireReponse<{ erreur?: string; ue?: UniteEnseignement }>(reponse);
+    if (!reponse.ok || !data.ue) {
+      setErreur(messageErreur(reponse, data, "Impossible de créer le cours."));
       return null;
     }
     onUeCree(data.ue);
@@ -376,9 +406,9 @@ export function CreneauFormModal({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(nouvelEnseignant),
     });
-    const data = await reponse.json();
-    if (!reponse.ok) {
-      setErreur(data.erreur ?? "Impossible d'enregistrer cet enseignant.");
+    const data = await lireReponse<{ erreur?: string; enseignant?: Enseignant }>(reponse);
+    if (!reponse.ok || !data.enseignant) {
+      setErreur(messageErreur(reponse, data, "Impossible d'enregistrer cet enseignant."));
       return null;
     }
     onEnseignantCree(data.enseignant);
@@ -600,24 +630,33 @@ export function CreneauFormModal({
             <label htmlFor="creneau-specialite" className="text-lg font-bold text-text">
               Affecter à
             </label>
-            <select
-              id="creneau-specialite"
-              value={specialite}
-              onChange={(e) => setSpecialite(e.target.value)}
-              disabled={specialites.length === 0}
-              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm disabled:opacity-60"
-            >
-              <option value="">
-                {specialites.length === 0
-                  ? "Tout le groupe (aucune spécialité à ce niveau)"
-                  : "Tout le groupe (tronc commun)"}
-              </option>
-              {specialites.map((sp) => (
-                <option key={sp.id} value={sp.libelle}>
-                  {sp.libelle}
-                </option>
-              ))}
-            </select>
+            {(() => {
+              const options = avecSpecialiteDuCreneau(specialites, specialite);
+              return (
+                <select
+                  id="creneau-specialite"
+                  value={specialite}
+                  onChange={(e) => setSpecialite(e.target.value)}
+                  // Désactivée seulement si le niveau n'ouvre RIEN et que le
+                  // créneau n'en porte aucune : sinon on figerait une valeur
+                  // hors référentiel sans pouvoir la corriger.
+                  disabled={options.length === 0}
+                  className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm disabled:opacity-60"
+                >
+                  <option value="">
+                    {specialites.length === 0
+                      ? "Tout le groupe (aucune spécialité à ce niveau)"
+                      : "Tout le groupe (tronc commun)"}
+                  </option>
+                  {options.map((o) => (
+                    <option key={o.cle} value={o.libelle}>
+                      {o.libelle}
+                      {o.retiree ? " (retirée du référentiel)" : ""}
+                    </option>
+                  ))}
+                </select>
+              );
+            })()}
             <p className="mt-1 text-xs text-text-subtle">
               {specialite
                 ? `Seuls les étudiants de « ${specialite} » sont concernés. Un autre cours peut donc se tenir à la même heure pour une autre spécialité.`

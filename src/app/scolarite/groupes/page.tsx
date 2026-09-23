@@ -6,7 +6,7 @@ import type { Departement, Groupe } from "@/lib/types";
 import { GroupeFormModal } from "@/components/groupes/GroupeFormModal";
 import { PassagePromotionModal } from "@/components/groupes/PassagePromotionModal";
 import { BarreFiltres } from "@/components/filtres/BarreFiltres";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, chargerJson, lireReponse, messageErreur } from "@/lib/api";
 import { correspond, useFiltresManuel, valeursDistinctes } from "@/lib/filtres";
 import { NIVEAUX, anneesAcademiques } from "@/lib/referentiel-options";
 
@@ -34,16 +34,14 @@ export default function GroupesPage() {
   // le filtre "Département" propose ses options avant même une première
   // actualisation — la liste elle-même (potentiellement lourde) reste gatée.
   useEffect(() => {
-    apiFetch("/departements")
-      .then((r) => r.json())
-      .then((data) => setDepartementsRef(data.departements));
+    chargerJson<{ departements?: Departement[] }>("/departements")
+      .then((data) => setDepartementsRef(data?.departements ?? []));
   }, []);
 
   useEffect(() => {
     if (!aActualise) return;
-    apiFetch("/groupes")
-      .then((r) => r.json())
-      .then((data) => setGroupes(data.groupes));
+    chargerJson<{ groupes?: Groupe[] }>("/groupes")
+      .then((data) => setGroupes(data?.groupes ?? []));
   }, [aActualise]);
 
   // [V6] Retour d'usage : après une progression de promotion, le groupe
@@ -97,12 +95,13 @@ export default function GroupesPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ effectif: nombre }),
     });
-    const data = await reponse.json();
-    if (!reponse.ok) {
-      setErreur(data.erreur ?? "Impossible de modifier l'effectif.");
+    const data = await lireReponse<{ erreur?: string; groupe?: Groupe }>(reponse);
+    if (!reponse.ok || !data.groupe) {
+      setErreur(messageErreur(reponse, data, "Impossible de modifier l'effectif."));
       return;
     }
-    setGroupes((prev) => (prev ?? []).map((g) => (g.id === groupeId ? data.groupe : g)));
+    const modifie = data.groupe;
+    setGroupes((prev) => (prev ?? []).map((g) => (g.id === groupeId ? modifie : g)));
     setEnEdition(null);
     setErreur(null);
   }
@@ -300,9 +299,8 @@ export default function GroupesPage() {
             // Recharge plutôt que de fusionner localement : les groupes
             // sources sont désormais `aDejaEteSuccede`, et c'est plus simple
             // de relire le référentiel que de recalculer ce marquage ici.
-            apiFetch("/groupes")
-              .then((r) => r.json())
-              .then((data) => setGroupes(data.groupes));
+            chargerJson<{ groupes?: Groupe[] }>("/groupes")
+              .then((data) => setGroupes(data?.groupes ?? []));
             setPassageOuvert(false);
           }}
         />

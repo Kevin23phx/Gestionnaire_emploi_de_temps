@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, X } from "lucide-react";
 import type { Groupe, Specialite } from "@/lib/types";
 import { apiFetch, lireReponse, messageErreur } from "@/lib/api";
-import { NIVEAU_SUIVANT, anneeAcademiqueSuivante } from "@/lib/referentiel-options";
+import { NIVEAU_SUIVANT, anneeAcademiqueSuivante, specialitesDuCouple } from "@/lib/referentiel-options";
 
 /**
  * [V6] FR-REF-12 — passage à l'année supérieure. Documenté depuis la V2
@@ -121,9 +121,7 @@ export function PassagePromotionModal({
 
   function specialitesPour(groupe: Groupe): Specialite[] {
     const niveauCible = NIVEAU_SUIVANT[groupe.niveau];
-    return specialites.filter(
-      (sp) => sp.niveau === niveauCible && sp.departement === groupe.departement
-    );
+    return specialitesDuCouple(specialites, groupe.departement, niveauCible);
   }
 
   function changerAnneeSource(annee: string) {

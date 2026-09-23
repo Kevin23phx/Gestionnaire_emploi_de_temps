@@ -5,7 +5,7 @@ import { Plus } from "lucide-react";
 import type { Salle, TypeUsageSalle } from "@/lib/types";
 import { SalleFormModal } from "@/components/salles/SalleFormModal";
 import { BarreFiltres } from "@/components/filtres/BarreFiltres";
-import { apiFetch } from "@/lib/api";
+import { chargerJson } from "@/lib/api";
 import { correspond, useFiltresManuel } from "@/lib/filtres";
 
 const USAGE_LABEL: Record<TypeUsageSalle, string> = {
@@ -41,9 +41,8 @@ export default function SallesPage() {
 
   useEffect(() => {
     if (!aActualise) return;
-    apiFetch("/salles")
-      .then((r) => r.json())
-      .then((data) => setSalles(data.salles));
+    chargerJson<{ salles?: Salle[] }>("/salles")
+      .then((data) => setSalles(data?.salles ?? []));
   }, [aActualise]);
 
   return (

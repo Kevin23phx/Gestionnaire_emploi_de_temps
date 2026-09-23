@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import type { UniteEnseignement } from "@/lib/types";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, lireReponse, messageErreur } from "@/lib/api";
 
 // [2026-09] Retour des gestionnaires : pas de champ "niveau" séparé — le
 // code du cours porte déjà cette information, un champ dédié ferait doublon.
@@ -41,19 +41,29 @@ export function CoursFormModal({
     setEnCours(true);
 
     const corps = { code, intitule };
-    const reponse = await apiFetch(modeEdition ? `/cours/${cours!.id}` : "/cours", {
-      method: modeEdition ? "PATCH" : "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(corps),
-    });
-    const data = await reponse.json();
-    setEnCours(false);
+    // [V8.6] `try/finally` + `lireReponse` : un serveur injoignable, ou
+    // qui répond autre chose que du JSON (500 rendu en HTML), faisait lever
+    // avant `setEnCours(false)` — le bouton restait alors bloqué sur son
+    // libellé d'attente, indéfiniment et sans message. Même défaut que
+    // celui constaté sur l'écran Spécialités le 2026-09-21.
+    try {
+      const reponse = await apiFetch(modeEdition ? `/cours/${cours!.id}` : "/cours", {
+        method: modeEdition ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(corps),
+      });
+      const data = await lireReponse<{ erreur?: string; ue?: UniteEnseignement }>(reponse);
 
-    if (!reponse.ok) {
-      setErreur(data.erreur ?? "Impossible d'enregistrer le cours.");
-      return;
+      if (!reponse.ok) {
+        setErreur(messageErreur(reponse, data, "Impossible d'enregistrer le cours."));
+        return;
+      }
+      onSave(data.ue!);
+    } catch {
+      setErreur("Le serveur est injoignable. Vérifiez votre connexion, puis réessayez.");
+    } finally {
+      setEnCours(false);
     }
-    onSave(data.ue);
   }
 
   return (

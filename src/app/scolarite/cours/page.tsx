@@ -5,7 +5,7 @@ import { Pencil, Plus } from "lucide-react";
 import type { UniteEnseignement } from "@/lib/types";
 import { CoursFormModal } from "@/components/cours/CoursFormModal";
 import { BarreFiltres } from "@/components/filtres/BarreFiltres";
-import { apiFetch } from "@/lib/api";
+import { chargerJson } from "@/lib/api";
 import { correspond, useFiltresManuel } from "@/lib/filtres";
 
 // [2026-09] Retour des gestionnaires post-présentation : rien ne charge
@@ -40,9 +40,8 @@ export default function CoursPage() {
 
   useEffect(() => {
     if (!aActualise) return;
-    apiFetch("/cours")
-      .then((r) => r.json())
-      .then((data) => setCours(data.cours));
+    chargerJson<{ cours?: UniteEnseignement[] }>("/cours")
+      .then((data) => setCours(data?.cours ?? []));
   }, [aActualise]);
 
   return (

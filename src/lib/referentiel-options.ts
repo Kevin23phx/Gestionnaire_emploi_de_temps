@@ -49,3 +49,28 @@ export function anneeAcademiqueSuivante(anneeAcademique: string): string {
   const [debut, fin] = anneeAcademique.split("-").map(Number);
   return `${debut + 1}-${fin + 1}`;
 }
+
+/**
+ * [V8.6] Les spécialités d'un couple (département, niveau).
+ *
+ * Quatre écrans refaisaient ce filtre à la main, avec une comparaison de
+ * département **sensible à la casse** (`===`). Le serveur, lui, compare
+ * sans tenir compte de la casse partout — contrainte d'unicité sur
+ * `Lower(libelle)`, recherche en `iexact`. Rien ne cassait aujourd'hui
+ * parce que le libellé d'un groupe est recopié depuis la liste déroulante
+ * des départements, donc identique au caractère près ; mais un seul import
+ * de groupes, ou une saisie libre réintroduite un jour, aurait fait
+ * disparaître les spécialités d'un écran sans message ni trace.
+ *
+ * Une règle écrite une fois vaut mieux que quatre copies qui dériveront.
+ */
+export function specialitesDuCouple<T extends { departement: string; niveau: string }>(
+  specialites: T[],
+  departement: string,
+  niveau: string
+): T[] {
+  const cherche = departement.trim().toLowerCase();
+  return specialites.filter(
+    (sp) => sp.departement.trim().toLowerCase() === cherche && sp.niveau === niveau
+  );
+}

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Eye, Plus, UserPlus } from "lucide-react";
 import type { TypeEtablissement, UfrAvecGestionnaire } from "@/lib/types";
 import { Badge } from "@/components/ui/StatusBadge";
-import { apiFetch } from "@/lib/api";
+import { chargerJson } from "@/lib/api";
 import { UfrFormModal } from "@/components/ufrs/UfrFormModal";
 import { GestionnaireFormModal } from "@/components/ufrs/GestionnaireFormModal";
 
@@ -25,9 +25,8 @@ export default function UfrsAdminPage() {
   const [ufrPourGestionnaire, setUfrPourGestionnaire] = useState<UfrAvecGestionnaire | null>(null);
 
   function recharger() {
-    apiFetch("/ufrs")
-      .then((r) => r.json())
-      .then((data) => setUfrs(data.ufrs));
+    chargerJson<{ ufrs?: UfrAvecGestionnaire[] }>("/ufrs")
+      .then((data) => setUfrs(data?.ufrs ?? []));
   }
 
   useEffect(recharger, []);

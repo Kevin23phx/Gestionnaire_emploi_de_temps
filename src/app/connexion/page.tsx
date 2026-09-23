@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Lock, User } from "lucide-react";
 import { CHEMIN_APRES_CONNEXION } from "@/lib/roles";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, lireReponse, messageErreur } from "@/lib/api";
 
 export default function ConnexionPage() {
   const router = useRouter();
@@ -22,30 +22,39 @@ export default function ConnexionPage() {
     setCompteNonActive(false);
     setEnCours(true);
 
-    const reponse = await apiFetch("/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ identifiant, motDePasse }),
-    });
+    // [V8.6] Enveloppé : `await apiFetch(...)` lève quand le serveur est
+    // injoignable, et le bouton restait alors bloqué sur « Connexion... »
+    // sans message. C'est le pire endroit où laisser ce défaut — un backend
+    // à l'arrêt est exactement le moment où quelqu'un essaie de se
+    // connecter et ne comprend pas pourquoi rien ne se passe.
+    try {
+      const reponse = await apiFetch("/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifiant, motDePasse }),
+      });
 
-    setEnCours(false);
+      if (!reponse.ok) {
+        const data = await lireReponse<{ erreur?: string; codeErreur?: string }>(reponse);
+        setErreur(messageErreur(reponse, data, "Une erreur est survenue."));
+        // FR-AUTH-03 : ce compte existe mais n'a jamais été activé — le
+        // signaler explicitement plutôt que de laisser l'utilisateur deviner
+        // pourquoi "Se connecter" échoue. [V3] Ne concerne plus que les
+        // comptes Gestionnaire créés par l'Admin.
+        setCompteNonActive(data.codeErreur === "compte_non_active");
+        return;
+      }
 
-    if (!reponse.ok) {
-      const data = await reponse.json();
-      setErreur(data.erreur ?? "Une erreur est survenue.");
-      // FR-AUTH-03 : ce compte existe mais n'a jamais été activé — le
-      // signaler explicitement plutôt que de laisser l'utilisateur deviner
-      // pourquoi "Se connecter" échoue. [V3] Ne concerne plus que les
-      // comptes Gestionnaire créés par l'Admin.
-      setCompteNonActive(data.codeErreur === "compte_non_active");
-      return;
+      // [V8] Le rôle renvoyé par l'API n'est plus lu ici : c'est
+      // /apres-connexion qui aiguille, côté serveur, à partir de la session.
+      // Voir src/lib/roles.ts.
+      router.push(CHEMIN_APRES_CONNEXION);
+      router.refresh();
+    } catch {
+      setErreur("Le serveur est injoignable. Vérifiez votre connexion, puis réessayez.");
+    } finally {
+      setEnCours(false);
     }
-
-    // [V8] Le rôle renvoyé par l'API n'est plus lu ici : c'est
-    // /apres-connexion qui aiguille, côté serveur, à partir de la session.
-    // Voir src/lib/roles.ts.
-    router.push(CHEMIN_APRES_CONNEXION);
-    router.refresh();
   }
 
   return (

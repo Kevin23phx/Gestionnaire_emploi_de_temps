@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Lock, User } from "lucide-react";
 import { CHEMIN_APRES_CONNEXION } from "@/lib/roles";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, lireReponse, messageErreur } from "@/lib/api";
 
 export default function ActivationPage() {
   return (
@@ -32,25 +32,31 @@ function ActivationForm() {
     setErreur(null);
     setEnCours(true);
 
-    const reponse = await apiFetch("/auth/activate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ identifiant, nouveauMotDePasse, confirmationMotDePasse }),
-    });
+    // [V8.6] Même précaution qu'à la connexion : un serveur injoignable
+    // laissait le bouton figé, sans message.
+    try {
+      const reponse = await apiFetch("/auth/activate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifiant, nouveauMotDePasse, confirmationMotDePasse }),
+      });
 
-    setEnCours(false);
+      if (!reponse.ok) {
+        const data = await lireReponse<{ erreur?: string }>(reponse);
+        setErreur(messageErreur(reponse, data, "Une erreur est survenue."));
+        return;
+      }
 
-    if (!reponse.ok) {
-      const data = await reponse.json();
-      setErreur(data.erreur ?? "Une erreur est survenue.");
-      return;
+      // [V8] Le rôle renvoyé par l'API n'est plus lu ici : c'est
+      // /apres-connexion qui aiguille, côté serveur, à partir de la session.
+      // Voir src/lib/roles.ts.
+      router.push(CHEMIN_APRES_CONNEXION);
+      router.refresh();
+    } catch {
+      setErreur("Le serveur est injoignable. Vérifiez votre connexion, puis réessayez.");
+    } finally {
+      setEnCours(false);
     }
-
-    // [V8] Le rôle renvoyé par l'API n'est plus lu ici : c'est
-    // /apres-connexion qui aiguille, côté serveur, à partir de la session.
-    // Voir src/lib/roles.ts.
-    router.push(CHEMIN_APRES_CONNEXION);
-    router.refresh();
   }
 
   return (

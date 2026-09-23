@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -19,6 +20,7 @@ import {
 import type { Role } from "@/lib/types";
 import { Avatar } from "@/components/ui/Avatar";
 import { apiFetch } from "@/lib/api";
+import { MotDePasseModal } from "@/components/layout/MotDePasseModal";
 
 interface NavItem {
   href: string;
@@ -77,6 +79,7 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [motDePasseOuvert, setMotDePasseOuvert] = useState(false);
 
   const items = NAV_ITEMS[role].map((item) =>
     cheminBase && item.href.startsWith("/admin")
@@ -155,13 +158,33 @@ export function Sidebar({
           <LogOut className="h-4 w-4" aria-hidden="true" />
           Déconnexion
         </button>
-        <div className="mt-3 flex min-w-0 items-center gap-2 border-t border-border px-3 pt-3">
-          <Avatar nom={nom} prenom={prenom} />
-          <span className="min-w-0 truncate text-sm text-text">
-            {prenom} {nom}
-          </span>
+        {/* [V8.3] Le bloc d'identité devient le point d'entrée des
+            réglages du compte — pour l'instant le seul : changer son mot de
+            passe (FR-AUTH-07).
+
+            C'est l'endroit où on le cherche : un utilisateur qui veut agir
+            sur SON compte clique sur son nom. Une entrée « Paramètres » de
+            plus dans la navigation aurait ajouté une rubrique à un menu qui
+            liste des sections de travail, pour une action qu'on fait deux
+            fois par an. */}
+        <div className="mt-3 border-t border-border pt-3">
+          <button
+            onClick={() => setMotDePasseOuvert(true)}
+            title="Changer mon mot de passe"
+            className="flex w-full min-w-0 items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-surface-muted"
+          >
+            <Avatar nom={nom} prenom={prenom} />
+            <span className="flex min-w-0 flex-col">
+              <span className="min-w-0 truncate text-sm text-text">
+                {prenom} {nom}
+              </span>
+              <span className="text-xs text-text-subtle">Mon mot de passe</span>
+            </span>
+          </button>
         </div>
       </div>
+
+      {motDePasseOuvert ? <MotDePasseModal onClose={() => setMotDePasseOuvert(false)} /> : null}
     </aside>
   );
 }

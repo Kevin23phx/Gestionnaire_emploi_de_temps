@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus } from "lucide-react";
 import type { Departement } from "@/lib/types";
 import { BarreFiltres } from "@/components/filtres/BarreFiltres";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, lireReponse, messageErreur } from "@/lib/api";
 import { useFiltresManuel } from "@/lib/filtres";
 
 // [2026-09] Retour des gestionnaires : les départements évoluent (un
@@ -38,7 +38,7 @@ export default function DepartementsPage() {
   const charger = useCallback(() => {
     apiFetch(requete)
       .then((r) => r.json())
-      .then((data) => setDepartements(data.departements));
+      .then((data) => setDepartements(data?.departements ?? []));
   }, [requete]);
 
   // Dépend de `requete` et pas seulement de `aActualise` : sans ça, changer
@@ -69,19 +69,26 @@ export default function DepartementsPage() {
     if (!nouveau.trim()) return;
     setErreur(null);
     setEnCours(true);
-    const reponse = await apiFetch("/departements", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ libelle: nouveau }),
-    });
-    const data = await reponse.json();
-    setEnCours(false);
-    if (!reponse.ok) {
-      setErreur(data.erreur ?? "Impossible de créer le département.");
-      return;
+    // [V8.6] Enveloppé : même défaut que sur l'écran Spécialités, constaté
+    // le 2026-09-21 — le bouton restait bloqué sur « Création... ».
+    try {
+      const reponse = await apiFetch("/departements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ libelle: nouveau }),
+      });
+      const data = await lireReponse<{ erreur?: string }>(reponse);
+      if (!reponse.ok) {
+        setErreur(messageErreur(reponse, data, "Impossible de créer le département."));
+        return;
+      }
+      setNouveau("");
+      if (aActualise) charger();
+    } catch {
+      setErreur("Le serveur est injoignable. Vérifiez votre connexion, puis réessayez.");
+    } finally {
+      setEnCours(false);
     }
-    setNouveau("");
-    if (aActualise) charger();
   }
 
   return (

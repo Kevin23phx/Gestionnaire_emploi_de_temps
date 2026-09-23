@@ -160,7 +160,11 @@ export function ActionsProgramme({ programme }: { programme: ProgrammePublic }) 
     const reponse = await apiFetch("/public/alertes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ groupeId: groupe.id, abonnement: abonnement.toJSON() }),
+      // [V8.7] La spécialité accompagne l'abonnement : sans elle, le
+      // serveur prévenait tous les abonnés du groupe, y compris ceux d'une
+      // autre spécialité. Le programme web et le flux agenda étaient déjà
+      // filtrés — ce canal-ci était le seul à ne pas l'être.
+      body: JSON.stringify({ groupeId: groupe.id, specialite, abonnement: abonnement.toJSON() }),
     });
     setAlerte(reponse.ok ? "active" : "inactive");
     if (!reponse.ok) setMessageAlerte("L'alerte n'a pas pu être activée. Réessayez plus tard.");

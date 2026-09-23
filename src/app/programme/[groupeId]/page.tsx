@@ -138,7 +138,7 @@ export default function ProgrammePage() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <header className="flex items-center justify-between gap-3 border-b border-border bg-surface px-4 py-3 sm:px-6">
+      <header className="flex items-center gap-3 border-b border-border bg-surface px-4 py-3 sm:px-6">
         <Link href="/" className="flex min-w-0 items-center gap-2 text-text-muted hover:text-text">
           <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
           <Image
@@ -150,12 +150,18 @@ export default function ProgrammePage() {
           />
           <span className="truncate text-sm font-bold text-brand">Campus Manager</span>
         </Link>
-        <Link
-          href="/connexion"
-          className="shrink-0 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-text-muted hover:bg-surface-muted"
-        >
-          Espace gestionnaire
-        </Link>
+        {/* [V8.2, complété le 2026-09-23] Le bouton « Espace gestionnaire »
+            a disparu d'ici aussi. Il avait été retiré de la page d'accueil
+            mais oublié sur cette page-ci, qui est pourtant la plus visitée
+            de tout le site — chaque étudiant consultant son emploi du temps
+            y lisait donc encore, en clair, qu'un espace authentifié existe
+            et où frapper (NFR-SEC-05).
+
+            Pas de double-clic sur le logo ici, contrairement à l'accueil :
+            ce logo est DÉJÀ un lien de retour à l'accueil, et deux gestes
+            concurrents sur le même élément se marcheraient dessus — le
+            simple clic partirait avant le second. L'entrée discrète reste
+            donc à un seul endroit, la page d'accueil. */}
       </header>
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6">

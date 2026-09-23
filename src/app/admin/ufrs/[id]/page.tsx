@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, Plus } from "lucide-react";
 import type { Creneau, Departement, Groupe, UfrAvecGestionnaire, UniteEnseignement } from "@/lib/types";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, chargerJson, lireReponse, messageErreur } from "@/lib/api";
 
 // [V3.1] L'onglet « Étudiants » a disparu avec le référentiel nominatif :
 // l'effectif d'un groupe est un nombre, visible dans l'onglet Promotions.
@@ -44,16 +44,20 @@ export default function UfrDetailAdminPage() {
   const [enCoursDepartement, setEnCoursDepartement] = useState(false);
 
   function chargerDepartements() {
-    apiFetch(`/departements?ufrId=${id}`).then((r) => r.json()).then((data) => setDepartements(data.departements));
+    chargerJson<{ departements?: Departement[] }>(`/departements?ufrId=${id}`).then((data) =>
+      setDepartements(data?.departements ?? [])
+    );
   }
 
   useEffect(() => {
-    apiFetch("/ufrs")
-      .then((r) => r.json())
-      .then((data) => setUfr((data.ufrs as UfrAvecGestionnaire[]).find((u) => u.id === id) ?? null));
-    apiFetch(`/groupes?ufrId=${id}`).then((r) => r.json()).then((data) => setGroupes(data.groupes));
-    apiFetch(`/cours?ufrId=${id}`).then((r) => r.json()).then((data) => setCours(data.cours));
-    apiFetch(`/creneaux?ufrId=${id}`).then((r) => r.json()).then((data) => setCreneaux(data.creneaux));
+    // [V8.6] `chargerJson` : une session expirée renvoyait 401 avec un
+    // corps sans `ufrs`, et le `.find` plantait la page entière.
+    chargerJson<{ ufrs?: UfrAvecGestionnaire[] }>("/ufrs").then((data) =>
+      setUfr((data?.ufrs ?? []).find((u) => u.id === id) ?? null)
+    );
+    chargerJson<{ groupes?: Groupe[] }>(`/groupes?ufrId=${id}`).then((d) => setGroupes(d?.groupes ?? []));
+    chargerJson<{ cours?: UniteEnseignement[] }>(`/cours?ufrId=${id}`).then((d) => setCours(d?.cours ?? []));
+    chargerJson<{ creneaux?: Creneau[] }>(`/creneaux?ufrId=${id}`).then((d) => setCreneaux(d?.creneaux ?? []));
     chargerDepartements();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
@@ -62,19 +66,26 @@ export default function UfrDetailAdminPage() {
     if (!nouveauDepartement.trim()) return;
     setErreurDepartement(null);
     setEnCoursDepartement(true);
-    const reponse = await apiFetch("/departements", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ libelle: nouveauDepartement, ufrId: id }),
-    });
-    const data = await reponse.json();
-    setEnCoursDepartement(false);
-    if (!reponse.ok) {
-      setErreurDepartement(data.erreur ?? "Impossible de créer le département.");
-      return;
+    // [V8.6] Enveloppé : sans cela, un serveur injoignable ou une réponse
+    // non-JSON laissait le bouton figé sur « Création... », sans message.
+    try {
+      const reponse = await apiFetch("/departements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ libelle: nouveauDepartement, ufrId: id }),
+      });
+      const data = await lireReponse<{ erreur?: string }>(reponse);
+      if (!reponse.ok) {
+        setErreurDepartement(messageErreur(reponse, data, "Impossible de créer le département."));
+        return;
+      }
+      setNouveauDepartement("");
+      chargerDepartements();
+    } catch {
+      setErreurDepartement("Le serveur est injoignable. Vérifiez votre connexion, puis réessayez.");
+    } finally {
+      setEnCoursDepartement(false);
     }
-    setNouveauDepartement("");
-    chargerDepartements();
   }
 
   return (

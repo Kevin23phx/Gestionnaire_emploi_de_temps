@@ -5,7 +5,7 @@ import { Download } from "lucide-react";
 import type { AuditEntry } from "@/lib/types";
 import { AuditTable } from "@/components/audit/AuditTable";
 import { BarreFiltres } from "@/components/filtres/BarreFiltres";
-import { apiFetch } from "@/lib/api";
+import { chargerJson } from "@/lib/api";
 import { useFiltresManuel } from "@/lib/filtres";
 
 // [V3] FR-AUD-04 — filtrage du journal d'audit, CÔTÉ SERVEUR.
@@ -64,11 +64,10 @@ export default function JournalAuditPage() {
   useEffect(() => {
     if (!aActualise) return;
     let annule = false;
-    apiFetch(requete)
-      .then((r) => r.json())
+    chargerJson<{ entries?: AuditEntry[] }>(requete)
       .then((data) => {
         if (annule) return;
-        setEntries(data.entries);
+        setEntries(data?.entries ?? []);
         setRequeteChargee(requete);
       })
       .catch(() => {

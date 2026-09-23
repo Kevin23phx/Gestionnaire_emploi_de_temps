@@ -9,7 +9,8 @@ import type { Creneau, Enseignant, Groupe, Salle, Specialite, UniteEnseignement 
 import { ScheduleWeekGrid } from "@/components/schedule/ScheduleWeekGrid";
 import { ConflictPanel } from "@/components/conflicts/ConflictPanel";
 import { CreneauFormModal } from "@/components/planning/CreneauFormModal";
-import { apiFetch } from "@/lib/api";
+import { specialitesDuCouple } from "@/lib/referentiel-options";
+import { apiFetch, chargerJson, lireReponse, messageErreur } from "@/lib/api";
 import { ajouterJours, depuisIso, libelleSemaine, lundiDe, versIso } from "@/lib/semaines";
 
 type EtatModal = { mode: "creation" } | { mode: "edition"; creneau: Creneau } | null;
@@ -61,28 +62,26 @@ export default function ProgrammeGroupePage() {
   const [lundi, setLundi] = useState(() => versIso(lundiDe(new Date())));
 
   useEffect(() => {
-    apiFetch("/creneaux")
-      .then((r) => r.json())
-      .then((data) => setCreneaux(data.creneaux));
-    apiFetch("/enseignants")
-      .then((r) => r.json())
-      .then((data) => setEnseignants(data.enseignants));
-    apiFetch("/salles")
-      .then((r) => r.json())
-      .then((data) => setSalles(data.salles));
-    apiFetch("/groupes")
-      .then((r) => r.json())
-      .then((data) => setGroupes(data.groupes));
-    apiFetch("/specialites")
-      .then((r) => r.json())
-      .then((data) => setSpecialitesRef(data.specialites ?? []))
-      .catch(() => setSpecialitesRef([]));
-    apiFetch("/cours")
-      .then((r) => r.json())
-      .then((data) => setUnitesEnseignement(data.cours));
-    apiFetch("/auth/me")
-      .then((r) => r.json())
-      .then((data) => data.nom && setAuteur(`${data.prenom} ${data.nom}`));
+    // [V8.6] `chargerJson` partout : ces sept appels posaient `undefined`
+    // dans leur état quand la session avait expiré, et `donneesPretes`
+    // n'étant jamais satisfait, l'écran restait bloqué sur « Chargement… »
+    // sans rien dire. Le chargeur renvoie désormais l'utilisateur vers la
+    // connexion sur un 401 — voir src/lib/api.ts.
+    chargerJson<{ creneaux?: Creneau[] }>("/creneaux").then((d) => setCreneaux(d?.creneaux ?? []));
+    chargerJson<{ enseignants?: Enseignant[] }>("/enseignants").then((d) =>
+      setEnseignants(d?.enseignants ?? [])
+    );
+    chargerJson<{ salles?: Salle[] }>("/salles").then((d) => setSalles(d?.salles ?? []));
+    chargerJson<{ groupes?: Groupe[] }>("/groupes").then((d) => setGroupes(d?.groupes ?? []));
+    chargerJson<{ specialites?: Specialite[] }>("/specialites").then((d) =>
+      setSpecialitesRef(d?.specialites ?? [])
+    );
+    chargerJson<{ cours?: UniteEnseignement[] }>("/cours").then((d) =>
+      setUnitesEnseignement(d?.cours ?? [])
+    );
+    chargerJson<{ nom?: string; prenom?: string }>("/auth/me").then((d) => {
+      if (d?.nom) setAuteur(`${d.prenom} ${d.nom}`);
+    });
   }, []);
 
   const donneesPretes =
@@ -99,9 +98,7 @@ export default function ProgrammeGroupePage() {
   // la réforme.
   const specialitesDuGroupe = useMemo(() => {
     if (!groupeActuel) return [];
-    return (specialitesRef ?? []).filter(
-      (sp) => sp.departement === groupeActuel.departement && sp.niveau === groupeActuel.niveau
-    );
+    return specialitesDuCouple(specialitesRef ?? [], groupeActuel.departement, groupeActuel.niveau);
   }, [specialitesRef, groupeActuel]);
 
   // La spécialité que le Gestionnaire a choisie « au préalable » — dans
@@ -223,7 +220,13 @@ export default function ProgrammeGroupePage() {
         creneaux: resultats.map((r) => versPayloadEcriture(r, motifDerogation ?? undefined)),
       }),
     });
-    const data = await reponse.json();
+    // [V8.6] `lireReponse` : un `reponse.json()` direct levait sur une
+    // réponse non-JSON, et l'exception partait AVANT tout affichage — le
+    // créneau n'était pas enregistré, et rien ne le disait. Le Gestionnaire
+    // repartait en croyant son programme à jour.
+    const data = await lireReponse<{ erreur?: string; conflits?: { titre: string }[]; creneaux?: Creneau[] }>(
+      reponse
+    );
 
     if (!reponse.ok) {
       if (reponse.status === 409 && Array.isArray(data.conflits)) {
@@ -231,7 +234,7 @@ export default function ProgrammeGroupePage() {
           `Conflit détecté (${data.conflits.map((c: { titre: string }) => c.titre).join(" · ")}) — ajoutez un motif de dérogation dans le formulaire pour enregistrer malgré tout.`
         );
       } else {
-        setErreurEcriture(data.erreur ?? "Impossible d'enregistrer ce créneau.");
+        setErreurEcriture(messageErreur(reponse, data, "Impossible d'enregistrer ce créneau."));
       }
       return; // rien n'a été persisté : ni journal d'audit, ni fermeture du modal.
     }
@@ -275,7 +278,13 @@ export default function ProgrammeGroupePage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ creneaux: creneauxModifies.map((c) => versPayloadEcriture(c)) }),
     });
-    const data = await reponse.json();
+    // [V8.6] `lireReponse` : un `reponse.json()` direct levait sur une
+    // réponse non-JSON, et l'exception partait AVANT tout affichage — le
+    // créneau n'était pas enregistré, et rien ne le disait. Le Gestionnaire
+    // repartait en croyant son programme à jour.
+    const data = await lireReponse<{ erreur?: string; conflits?: { titre: string }[]; creneaux?: Creneau[] }>(
+      reponse
+    );
 
     if (!reponse.ok) {
       if (reponse.status === 409 && Array.isArray(data.conflits)) {

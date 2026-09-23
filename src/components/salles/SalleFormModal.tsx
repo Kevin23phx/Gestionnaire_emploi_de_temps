@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import type { Salle, TypeUsageSalle } from "@/lib/types";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, lireReponse, messageErreur } from "@/lib/api";
 
 const TYPES: { value: TypeUsageSalle; label: string }[] = [
   { value: "cours", label: "Cours (CM)" },
@@ -32,20 +32,29 @@ export function SalleFormModal({
     setErreur(null);
     setEnCours(true);
 
-    const reponse = await apiFetch("/salles", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nom, capacite, typeUsage }),
-    });
-    const data = await reponse.json();
-    setEnCours(false);
+    // [V8.6] `try/finally` + `lireReponse` : un serveur injoignable, ou
+    // qui répond autre chose que du JSON (500 rendu en HTML), faisait lever
+    // avant `setEnCours(false)` — le bouton restait alors bloqué sur son
+    // libellé d'attente, indéfiniment et sans message. Même défaut que
+    // celui constaté sur l'écran Spécialités le 2026-09-21.
+    try {
+      const reponse = await apiFetch("/salles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nom, capacite, typeUsage }),
+      });
+      const data = await lireReponse<{ erreur?: string; salle?: Salle }>(reponse);
 
-    if (!reponse.ok) {
-      setErreur(data.erreur ?? "Impossible de créer la salle.");
-      return;
+      if (!reponse.ok) {
+        setErreur(messageErreur(reponse, data, "Impossible de créer la salle."));
+        return;
+      }
+      onSave(data.salle!);
+    } catch {
+      setErreur("Le serveur est injoignable. Vérifiez votre connexion, puis réessayez.");
+    } finally {
+      setEnCours(false);
     }
-
-    onSave(data.salle);
   }
 
   const peutEnregistrer = nom.trim() && Number(capacite) > 0 && !enCours;

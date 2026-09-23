@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import type { TypeEtablissement, Ufr } from "@/lib/types";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, lireReponse, messageErreur } from "@/lib/api";
 
 // FR-ADMIN-01/INT-09 : seul l'Admin crée un établissement — ce formulaire
 // n'est jamais monté ailleurs que dans /admin/ufrs (RoleGuardShell le
@@ -33,20 +33,29 @@ export function UfrFormModal({ onClose, onSave }: { onClose: () => void; onSave:
     setErreur(null);
     setEnCours(true);
 
-    const reponse = await apiFetch("/ufrs", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nom, sigle, type }),
-    });
-    const data = await reponse.json();
-    setEnCours(false);
+    // [V8.6] `try/finally` + `lireReponse` : un serveur injoignable, ou
+    // qui répond autre chose que du JSON (500 rendu en HTML), faisait lever
+    // avant `setEnCours(false)` — le bouton restait alors bloqué sur son
+    // libellé d'attente, indéfiniment et sans message. Même défaut que
+    // celui constaté sur l'écran Spécialités le 2026-09-21.
+    try {
+      const reponse = await apiFetch("/ufrs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nom, sigle, type }),
+      });
+      const data = await lireReponse<{ erreur?: string; ufr?: Ufr }>(reponse);
 
-    if (!reponse.ok) {
-      setErreur(data.erreur ?? "Impossible de créer l'établissement.");
-      return;
+      if (!reponse.ok) {
+        setErreur(messageErreur(reponse, data, "Impossible de créer l'établissement."));
+        return;
+      }
+      onSave(data.ufr!);
+    } catch {
+      setErreur("Le serveur est injoignable. Vérifiez votre connexion, puis réessayez.");
+    } finally {
+      setEnCours(false);
     }
-
-    onSave(data.ufr);
   }
 
   return (

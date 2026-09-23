@@ -20,6 +20,17 @@ const APPARENCE: Record<StatutSeance, { carte: string; badge: string | null }> =
   annule: { carte: "border-l-4 border-status-danger bg-status-danger-bg", badge: "Annulé" },
 };
 
+/**
+ * [V8.5] Désigne la cohorte telle que le visiteur l'a choisie : son niveau,
+ * sa spécialité s'il en a une, et son département. Le NOM du groupe n'y
+ * figure pas — « L2 Medecine » ou « TD 1 » est un libellé de gestion, alors
+ * que le visiteur vient d'assembler « L2 · science du cerveau · Medecine »
+ * dans la recherche, et c'est cela qu'il doit reconnaître.
+ */
+function libelleCohorte(groupe: ProgrammePublic["groupe"]): string {
+  return [groupe.niveau, groupe.specialiteConsultee, groupe.departement].filter(Boolean).join(" · ");
+}
+
 function Seance({ seance }: { seance: SeancePublique }) {
   const { carte, badge } = APPARENCE[seance.statut];
   const barre = seance.statut === "annule";
@@ -62,7 +73,7 @@ export function ProgrammeSemaine({
   programme: ProgrammePublic;
   onSemaineChange: (lundiIso: string) => void;
 }) {
-  const { semaine, seances } = programme;
+  const { groupe, semaine, seances } = programme;
   const dates = datesDeLaSemaine(semaine.lundi);
 
   const precedente = versIso(ajouterJours(depuisIso(semaine.lundi), -7));
@@ -114,9 +125,27 @@ export function ProgrammeSemaine({
         // Le programme sort en fin de semaine pour la suivante : une semaine
         // vide n'est pas une anomalie, c'est une semaine dont la scolarité
         // n'a pas encore fait sortir l'emploi du temps.
-        <p className="px-4 py-10 text-center text-sm text-text-muted">
-          Le programme de cette semaine n&apos;a pas encore été publié.
-        </p>
+        //
+        // [V8.5] Le message NOMME la promotion et la semaine. C'est
+        // désormais sur cet écran qu'on atterrit dès qu'un groupe existe,
+        // y compris quand rien n'y est saisi : « le programme de cette
+        // semaine » ne disait pas DE QUOI il parlait, et un visiteur qui
+        // hésite entre deux spécialités ne pouvait pas vérifier qu'il
+        // regardait la bonne. Il dit aussi quoi faire ensuite — changer de
+        // semaine — parce qu'un écran vide sans issue se lit comme une
+        // panne.
+        <div className="px-4 py-10 text-center">
+          <p className="text-sm font-medium text-text">
+            Aucun programme disponible pour {libelleCohorte(groupe)}
+          </p>
+          <p className="mt-1 text-sm text-text-muted">
+            pour la {libelleSemaine(semaine.lundi, semaine.samedi).toLowerCase()}.
+          </p>
+          <p className="mt-3 text-xs text-text-subtle">
+            Utilisez les flèches ci-dessus pour consulter une autre semaine. Mettez ce programme en favori
+            pour le retrouver dès qu&apos;il sera publié.
+          </p>
+        </div>
       ) : (
         // Une colonne par jour au-delà de md, une pile de sections en
         // dessous : sur téléphone, six colonnes rendraient chaque intitulé

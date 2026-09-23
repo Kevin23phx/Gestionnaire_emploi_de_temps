@@ -1,2 +1,50 @@
+# [V8.8, 2026-09-23] En-têtes servis par Cloudflare Pages (OWASP A05).
+#
+# Ce fichier ne portait que du cache. Aucun en-tête de sécurité n'était
+# servi au navigateur : ni protection contre le clickjacking, ni contre
+# l'interprétation d'un fichier dans un type qu'il n'a pas, ni la moindre
+# restriction sur les origines depuis lesquelles du code peut être chargé.
+
 /_next/static/*
   Cache-Control: public,max-age=31536000,immutable
+
+/*
+  # Le site n'a aucune raison d'être affiché dans un cadre. `frame-ancestors`
+  # de la CSP fait le même travail et le fait mieux (il accepte une liste
+  # d'origines) ; X-Frame-Options reste pour les navigateurs anciens, encore
+  # nombreux sur le parc visé — cahier des charges §1.4, Android d'entrée
+  # de gamme.
+  X-Frame-Options: DENY
+
+  # Interdit au navigateur de « deviner » un type différent de celui
+  # déclaré. Sans lui, un fichier téléversé un jour et servi avec un type
+  # générique pourrait être exécuté comme du script.
+  X-Content-Type-Options: nosniff
+
+  # Un lien sortant n'emporte que notre origine, jamais le chemin complet.
+  # Un emploi du temps consulté est une information anodine ; l'accumuler
+  # dans les journaux de sites tiers ne l'est pas.
+  Referrer-Policy: strict-origin-when-cross-origin
+
+  # Le site ne demande ni caméra, ni micro, ni position. Le déclarer ferme
+  # ces portes même si une dépendance tentait un jour de les ouvrir.
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+
+  # Content-Security-Policy.
+  #
+  # `script-src` autorise 'unsafe-inline' — et c'est un compromis assumé,
+  # pas un oubli. Next.js injecte des scripts en ligne pour l'hydratation ;
+  # les interdire exigerait un nonce par réponse, donc un en-tête calculé à
+  # chaque requête, ce qu'un fichier statique servi par le CDN ne peut pas
+  # faire. Ce que la directive apporte malgré tout est réel : aucun script
+  # d'une AUTRE origine ne peut être chargé, ce qui ferme l'injection de
+  # script distant — le vecteur le plus courant.
+  #
+  # `connect-src` inclut https: parce que l'API vit sur un autre domaine
+  # (Render) et que son adresse est une variable de déploiement, inconnue
+  # ici. À restreindre au domaine réel de l'API dès qu'il est figé.
+  #
+  # `frame-ancestors 'none'`, `object-src 'none'` et `base-uri 'self'` sont
+  # les trois directives qui coûtent le moins et protègent le plus :
+  # clickjacking, greffons obsolètes, et détournement des URL relatives.
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https:; manifest-src 'self'; worker-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'

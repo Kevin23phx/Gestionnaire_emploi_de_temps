@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { AuditEntry, Ufr } from "@/lib/types";
 import { AuditTable } from "@/components/audit/AuditTable";
 import { BarreFiltres } from "@/components/filtres/BarreFiltres";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, chargerJson } from "@/lib/api";
 import { useFiltresManuel } from "@/lib/filtres";
 
 // FR-ADMIN-03 : même table que /scolarite/audit, mais transverse à tous les
@@ -38,9 +38,8 @@ export default function JournalAuditAdminPage() {
   const ufrId = valeur("etablissement");
 
   useEffect(() => {
-    apiFetch("/ufrs")
-      .then((r) => r.json())
-      .then((data) => setEtablissements(data.ufrs))
+    chargerJson<{ ufrs?: Ufr[] }>("/ufrs")
+      .then((data) => setEtablissements(data?.ufrs ?? []))
       .catch(() => setEtablissements([]));
   }, []);
 

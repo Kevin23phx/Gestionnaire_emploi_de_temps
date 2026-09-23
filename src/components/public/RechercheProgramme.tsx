@@ -27,6 +27,18 @@ import type { GroupePublic, Ufr } from "@/lib/types";
 // Ce qui subsiste de la cascade, c'est l'ordre de saisie : un département
 // appartient à un établissement, on ne peut donc le proposer avant lui.
 //
+// [V8.5, 2026-09-23] « Actualiser » ouvre l'écran de programme dès qu'un
+// groupe correspond, même si ce groupe n'a aucun cours saisi. Le message
+// « pas encore disponible » ne subsiste ici que pour le cas où AUCUN
+// groupe n'existe — il n'y a alors rien à ouvrir, aucun programme à mettre
+// en favori ni à abonner à un agenda.
+//
+// Motif, donné par le porteur de projet : un message sous les filtres
+// suppose qu'on le lise, et les gens ne lisent pas. L'écran de programme
+// montre au lieu de dire — la semaine, les flèches pour en changer, les
+// boutons d'action — et reste utile même quand la semaine est vide.
+//
+//
 // [V8, 2026-09-21] Réforme « Niveau / Spécialité ». Le quatrième filtre
 // s'intitulait « Parcours » et contenait en réalité des NIVEAUX (L1…M2) :
 // un seul mot pour deux notions, et aucune place pour la troisième. Il
@@ -72,7 +84,6 @@ export function RechercheProgramme() {
   // Le sigle plutôt que l'identifiant dans le message « pas encore publié » :
   // c'est sous ce nom que le visiteur connaît son établissement.
   const sigleEtablissement = (ufrs ?? []).find((u) => u.id === ufrId)?.sigleAffiche ?? "votre établissement";
-
   useEffect(() => {
     apiFetch("/public/annees")
       .then((r) => r.json())
@@ -133,10 +144,12 @@ export function RechercheProgramme() {
   // les invalide (le clic), jamais dans le corps d'un effet : sans ça,
   // choisir un nouvel Établissement afficherait un instant les Départements
   // du précédent, le temps que le nouvel appel réseau revienne.
+  //
+  // Toutes remettent aussi le RÉSULTAT à demander : il portait sur une
+  // sélection qui vient de changer.
   function changerAnnee(valeur: string) {
     setAnnee(valeur);
-    // Les étages avals ne sont pas vidés : ils ne dépendent plus de l'année.
-    // Seul le RÉSULTAT, lui, redevient à demander.
+    // Les étages avals ne sont pas vidés : ils ne dépendent pas de l'année.
     setResultatsPrets(false);
     setGroupes(null);
   }
@@ -185,9 +198,6 @@ export function RechercheProgramme() {
   // l'affectation se fait au créneau, un groupe unique sert plusieurs
   // spécialités — sans ce paramètre, l'étudiant d'Informatique et celui de
   // Chimie arriveraient sur la même page, avec tous les cours mélangés.
-  //
-  // Dans l'URL et non dans un état : la page reste partageable entre
-  // camarades de la même spécialité, et un favori la conserve.
   function lienProgramme(groupeId: string): string {
     return specialite
       ? `/programme/${groupeId}?specialite=${encodeURIComponent(specialite)}`
@@ -207,8 +217,19 @@ export function RechercheProgramme() {
       .then((r) => r.json())
       .then((d: { groupes: GroupePublic[] }) => {
         setChargementResultats(false);
-        // Un seul groupe possible : inutile de faire cliquer une fois de
-        // plus sur une liste à un élément.
+        // [V8.5] Un seul groupe : on ouvre son programme directement, sans
+        // repasser par une carte à cliquer.
+        //
+        // Ce n'est pas qu'un raccourci de confort. Un message sous les
+        // filtres suppose qu'on le lise, et le porteur de projet l'a dit
+        // sans détour : les gens ne lisent pas. L'écran de programme, lui,
+        // montre — la grille de la semaine, les flèches pour en changer,
+        // et les boutons Favori / Agenda / M'avertir. Même vide, il
+        // apprend au visiteur quoi faire ensuite ; le message, non.
+        //
+        // À deux groupes ou plus, la carte reste : il y a alors une vraie
+        // question à poser (Groupe A ou Groupe B), et on ne peut pas ouvrir
+        // deux programmes à la fois.
         if (d.groupes.length === 1) {
           router.push(lienProgramme(d.groupes[0].id));
           return;
@@ -358,8 +379,13 @@ export function RechercheProgramme() {
         </div>
       </div>
 
-      {/* Zone d'affichage : rien tant que les 4 filtres ne sont pas choisis
-          ET qu'Actualiser n'a pas été cliqué. */}
+      {/* Zone d'affichage : rien tant que les filtres ne sont pas choisis
+          ET qu'Actualiser n'a pas été cliqué.
+
+          [V8.4] C'est ici que TOUTE réponse arrive désormais — zéro, un ou
+          plusieurs programmes. Le cas « un seul » partait auparavant
+          directement sur la feuille de programme, ce qui faisait répondre
+          l'écran à deux endroits différents selon la sélection. */}
       {!resultatsPrets ? (
         <div className="rounded-xl border border-dashed border-border bg-surface p-8 text-center text-sm text-text-muted">
           <Search className="mx-auto mb-2 h-5 w-5 text-text-subtle" aria-hidden="true" />

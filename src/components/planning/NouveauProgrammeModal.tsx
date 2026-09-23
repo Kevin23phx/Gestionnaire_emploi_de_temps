@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import type { Groupe, Specialite } from "@/lib/types";
+import { specialitesDuCouple } from "@/lib/referentiel-options";
 import { apiFetch } from "@/lib/api";
 
 // "Nouveau programme" = choisir le groupe pour lequel on ouvre une feuille
@@ -53,9 +54,7 @@ export function NouveauProgrammeModal({
   // les spécialités du groupe précédent.
   const specialitesDuGroupe = useMemo(() => {
     if (!groupeChoisi) return [];
-    return (specialitesRef ?? []).filter(
-      (sp) => sp.departement === groupeChoisi.departement && sp.niveau === groupeChoisi.niveau
-    );
+    return specialitesDuCouple(specialitesRef ?? [], groupeChoisi.departement, groupeChoisi.niveau);
   }, [specialitesRef, groupeChoisi]);
 
   // Le choix ne survit pas à un changement de groupe : « Chimie » n'a
