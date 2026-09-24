@@ -211,7 +211,7 @@ lancer() {
 etape "Serveurs"
 
 if port_occupe "$PORT_API"; then
-  mourir "Le port $PORT_API est déjà utilisé — un backend tourne déjà ? (voir aussi si un autre outil/IA a le sien)"
+  mourir "Le port $PORT_API est déjà utilisé — un backend tourne déjà ? (voir aussi si un autre outil a le sien)"
 fi
 lancer "[api]" "$BLEU" "$BACK" "$BACK/venv/bin/python" manage.py runserver "0.0.0.0:$PORT_API"
 
