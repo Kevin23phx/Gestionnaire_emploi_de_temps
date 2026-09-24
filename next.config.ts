@@ -23,6 +23,43 @@ function adressesLocales(): string[] {
 // tourne en local et n'a besoin d'aucun relais (voir src/lib/api.ts).
 const BACKEND_DISTANT = process.env.API_INTERNAL_URL?.trim();
 
+// Recopie exacte des valeurs de `public/_headers` : une seule politique,
+// deux points de livraison. Toute évolution doit toucher les deux, sans
+// quoi fichiers et pages divergeraient en silence.
+//
+// `'unsafe-inline'` sur script-src et style-src : Next pose le script
+// d'hydratation et les styles critiques en ligne, sans nonce. Les retirer
+// donnerait une page blanche.
+// `connect-src 'self' https:` : les appels d'API passent par notre propre
+// domaine (cf. `rewrites` plus bas), `https:` couvre l'abonnement aux
+// notifications push.
+const EN_TETES_SECURITE = [
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  {
+    key: "Permissions-Policy",
+    value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+  },
+  {
+    key: "Content-Security-Policy",
+    value: [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob:",
+      "font-src 'self' data:",
+      "connect-src 'self' https:",
+      "manifest-src 'self'",
+      "worker-src 'self'",
+      "frame-ancestors 'none'",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join("; "),
+  },
+];
+
 const nextConfig: NextConfig = {
   allowedDevOrigins: adressesLocales(),
   // Relaie /api/* vers le backend distant, SUR NOTRE PROPRE DOMAINE du point
@@ -32,6 +69,22 @@ const nextConfig: NextConfig = {
   async rewrites() {
     if (!BACKEND_DISTANT) return [];
     return [{ source: "/api/:path*", destination: `${BACKEND_DISTANT}/:path*` }];
+  },
+
+  // [V8.8, 2026-09-23] Mêmes en-têtes de sécurité que `public/_headers`,
+  // mais posés ICI — sans quoi ils ne couvrent pas les pages.
+  //
+  // `_headers` n'est lu que par la couche qui sert les FICHIERS (bundles,
+  // images, manifeste). Les pages, elles, sont fabriquées par le worker,
+  // qui construit sa réponse et la renvoie sans passer par cette couche :
+  // son `/*` protégeait donc le JavaScript — qui n'en a guère besoin — et
+  // laissait à découvert le HTML, seule cible réelle du clickjacking, de la
+  // confusion de type et de l'injection que ces en-têtes visent.
+  //
+  // Les deux déclarations coexistent : `_headers` garde le cache long des
+  // fichiers statiques, que Next ne gère pas.
+  async headers() {
+    return [{ source: "/:path*", headers: EN_TETES_SECURITE }];
   },
 };
 

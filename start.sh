@@ -154,7 +154,15 @@ if [ "$AVEC_DB" = 1 ]; then
 
   if [ "$AVEC_SEED" = 1 ]; then
     etape "Données de démonstration"
-    (cd "$BACK" && bash scripts/seed.sh >/dev/null 2>&1) && ok "Rechargées" || alerte "Le seed a échoué"
+    # scripts/seed.sh a été retiré du backend le 2026-09-14 : la commande
+    # `manage.py seed` s'invoque désormais directement (voir son README).
+    # DATABASE_URL forcé au rôle privilégié (MIGRATE_DATABASE_URL) : le rôle
+    # applicatif restreint n'a pas le DELETE sur audit_entry/conflit_journal
+    # (immuabilité du journal, INV-04) que le seed doit pourtant vider avant
+    # de repartir de zéro.
+    (cd "$BACK" && source venv/bin/activate && set -a && source .env && set +a \
+      && DATABASE_URL="$MIGRATE_DATABASE_URL" python manage.py seed >/dev/null 2>&1) \
+      && ok "Rechargées" || alerte "Le seed a échoué"
   fi
 fi
 
